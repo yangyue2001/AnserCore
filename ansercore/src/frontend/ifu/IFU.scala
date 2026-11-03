@@ -16,7 +16,7 @@ class IFU extends IFUModule {
   class IFUIO extends IFUBundle {
     val flush = Input(Bool())
     val fromFTQ = Flipped(new FTQToIFUIO)
-    val toFTQ = Flipped(new IFUToFTQIO)
+    val toFTQ = Valid(new IFUToFTQIO)
     val toBackend = Flipped(new IFUToBackendIO)
     val toMMU = Output(new FrontendToMMUBundle)
     val fromMMU = Input(new MMUToFrontendIO)
@@ -46,4 +46,7 @@ class IFU extends IFUModule {
   icache.io.memResp.bits := 0.U.asTypeOf(new ICacheMemResp)
 
   io.toMMU := icache.io.toMMU
+  // 预译码还没接回 FTQ。接口已经是 Valid(IFUToFTQIO)，先把上报关掉。
+  io.toFTQ.valid := false.B
+  io.toFTQ.bits := 0.U.asTypeOf(new IFUToFTQIO)
 }

@@ -90,10 +90,10 @@ class PreDecode extends IFUModule with PreDecodeHelper with FrontendHelper {
   val finalCfi          = Mux1H(finalOffsetOH, cfiAttribute)
   val finalTaken        = hasUncond || (validPredEnd && instReq.predTaken)
 
-  val finalPc      = (instReq.startPC + finalOffset)(pcWidth - 1, 0)
-  val finalStartPc = Mux(finalIsRvc, finalPc, (finalPc - 1.U)(pcWidth - 1, 0))
-  val jalTarget    = (finalStartPc + getJalOffset(finalInst, finalIsRvc))(pcWidth - 1, 0)
-  val brTarget     = (finalStartPc + getBrOffset(finalInst, finalIsRvc))(pcWidth - 1, 0)
+  val finalPC      = (instReq.startPC + finalOffset)(pcWidth - 1, 0)
+  val finalStartPC = Mux(finalIsRvc, finalPC, (finalPC - 1.U)(pcWidth - 1, 0))
+  val jalTarget    = (finalStartPC + getJalOffset(finalInst, finalIsRvc))(pcWidth - 1, 0)
+  val brTarget     = (finalStartPC + getBrOffset(finalInst, finalIsRvc))(pcWidth - 1, 0)
   // 预测命中的 jalr 直接沿用预测目标。更早发现的 jalr 没有自己的 RAS 顶，只能借用 req.rasTopAddr。
   val predictedJalr = validPredEnd && instReq.predTaken && finalCfi.jalr && finalOffset === instReq.predEndOffset
   val jalrTarget    = Mux(predictedJalr, instReq.predTarget, instReq.rasTopAddr)
@@ -111,7 +111,7 @@ class PreDecode extends IFUModule with PreDecodeHelper with FrontendHelper {
   predecode.endOffset     := finalOffset
   predecode.target        := takenTarget
   predecode.taken         := finalTaken
-  predecode.cfiAttr.cfiType := Mux(
+  predecode.cfiAttribute.cfiType := Mux(
     !finalIsInst,
     CFITypte.none,
     Mux(
@@ -120,7 +120,7 @@ class PreDecode extends IFUModule with PreDecodeHelper with FrontendHelper {
       Mux(finalCfi.jal, CFITypte.direct, Mux(finalCfi.jalr, CFITypte.indirect, CFITypte.none)),
     ),
   )
-  predecode.cfiAttr.rasAction := Mux(
+  predecode.cfiAttribute.rasAction := Mux(
     !finalIsInst,
     RASAction.none,
     Mux(

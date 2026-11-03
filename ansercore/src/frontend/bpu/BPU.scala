@@ -214,10 +214,11 @@ class BPU extends BPUModule with FrontendHelper {
   ras.io.specUpate.valid := s3ValidOut && (s3CFIAttribute.hasPush || s3CFIAttribute.hasPop)
   ras.io.specUpate.bits.rasAction := s3CFIAttribute.rasAction
   ras.io.specUpate.bits.pushPC := callReturnPC
+  val redirectCFIPC = (redirect.startPC + redirect.endOffset)(pcWidth - 1, 0)
   ras.io.recover.valid := redirectValid
   ras.io.recover.bits.meta := redirect.meta.ras
-  ras.io.recover.bits.update.rasAction := redirect.rasAction
-  ras.io.recover.bits.update.pushPC := redirect.cfiPC
+  ras.io.recover.bits.update.rasAction := redirect.cfiAttribute.rasAction.asUInt
+  ras.io.recover.bits.update.pushPC := redirectCFIPC
 
 //----------------------output----------------------------------------//
   val s3Result = Wire(new BPUS3Result)
@@ -249,7 +250,7 @@ class BPU extends BPUModule with FrontendHelper {
   phr.io.redirect.valid := redirectValid
   phr.io.redirect.bits.restore := redirect.meta.phr
   phr.io.redirect.bits.update.taken := redirect.taken
-  phr.io.redirect.bits.update.update.cfiPC := redirect.cfiPC
+  phr.io.redirect.bits.update.update.cfiPC := redirectCFIPC
   phr.io.redirect.bits.update.update.target := redirect.target
   phr.io.trainMeta := io.fromFTQ.train.bits.meta.phr
 }

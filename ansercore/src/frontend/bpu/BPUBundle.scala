@@ -12,6 +12,7 @@ import ansercore.frontend.bpu.ittage.ITTAGEMeta
 import ansercore.frontend.ftq.FTQPtr
 import ansercore.frontend.ftq.FTQFetchBlcokEntry
 import ansercore.frontend.CFIAttribute
+import ansercore.frontend.FetchBlock
 
 
 /* *** public *** */
@@ -63,10 +64,11 @@ class BPUTrainMeta extends BPUBundle {
 }
 
 class BPURedirect extends BPUBundle {
-  val cfiPC     = UInt(pcWidth.W)
+  val startPC     = UInt(pcWidth.W)
+  val endOffset = UInt(FetchBlockOffsetWidth.W)
   val target    = UInt(pcWidth.W)
   val taken     = Bool()
-  val rasAction = UInt(2.W)
+  val cfiAttribute = new CFIAttribute
   val meta      = new BPURedirectMeta
 }
 

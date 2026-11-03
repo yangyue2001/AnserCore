@@ -10,6 +10,7 @@ import ansercore.mmu.pmp.PMPReq
 import ansercore.mmu.pmp.PMPResp
 import ansercore.mmu.pma.PMAReq
 import ansercore.mmu.pma.PMAResp
+import ansercore.frontend.CFIAttribute
 /*
 class BackendToFrontendIO extends YQHBundle{
   val frontendCsr = Output(new )
@@ -67,6 +68,7 @@ class BackendRedirect extends YQHBundle{
   val target = UInt(pcWidth.W)
   val taken = Bool()
   val mispredict = Bool()
+  val cfiAttribute = new CFIAttribute
 }
 
 

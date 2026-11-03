@@ -12,7 +12,7 @@ class PredecodeInfo extends IFUBundle{
   val endOffset = UInt(FetchBlockOffsetWidth.W)
   val target = UInt(pcWidth.W)
   val taken = Bool()
-  val cfiAttr = new CFIAttribute
+  val cfiAttribute = new CFIAttribute
   val isRVC = Vec(FetchBlockNumSlots, Bool())
 }
 

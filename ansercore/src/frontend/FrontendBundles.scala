@@ -21,7 +21,7 @@ class FTQToBPUIO extends FrontendBundle{
 }
 
 class FTQToIFUIO extends FrontendBundle{
-  val s3Override = Bool()
+  val s3Override = Output(Bool())
   val lookUp = Decoupled(new FTQLookup)
   val fetch = Decoupled(new FTQFetch)
 }
@@ -35,8 +35,9 @@ class BackendToFTQIO extends FrontendBundle{
 }
 
 class IFUToFTQIO  extends FrontendBundle {
-  val ftqPtr = Output(new FTQPtr)
-  val preDecodeInfo = Valid(new PredecodeInfo)
+  val ftqPtr = new FTQPtr
+  val startPc = UInt(pcWidth.W)
+  val preDecodeInfo = new PredecodeInfo
 }
 
 class IFUToBackendIO extends FrontendBundle{
@@ -44,7 +45,7 @@ class IFUToBackendIO extends FrontendBundle{
 
 
 class FetchBlock extends FrontendBundle{
-  val startPc = UInt(pcWidth.W)
+  val startPC = UInt(pcWidth.W)
   val endOffset = UInt(FetchBlockOffsetWidth.W)
   val target = UInt(pcWidth.W)
 }
