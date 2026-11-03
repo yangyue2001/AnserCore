@@ -54,9 +54,12 @@ class ICacheWayLookup extends ICacheModule with HasCircularQueuePtrHelper {
 
   val s2TakesQueue = io.s2Pop && s2FromQueue
   val s0TakesQueue = io.s0Pop && s0FromQueue
-  io.lookupPush.ready := (!full || s2TakesQueue || s0TakesQueue) && !exceptStall
+  // ready 不能看本拍 pop。否则 fetch pop 会绕回 lookup s2，形成组合环。
+  // 队列满时，pop 的下一拍再接收新的 lookup。
+  io.lookupPush.ready := !full && !exceptStall
   val pushFire = io.lookupPush.fire
-  val popNum = Mux(s2Takes, 1.U, 0.U) + Mux(s0Takes, 1.U, 0.U)
+  // 两个 pop 同时成立时不能用 1 位加法，否则 1+1 变成 0，队头停住。
+  val popNum = s2Takes.asUInt +& s0Takes.asUInt
 
   when(flush){
     pushPtr := 0.U.asTypeOf(new WayLookupPtr)

@@ -219,14 +219,16 @@ class ICache extends ICacheModule with ICacheHelper with FrontendHelper{
     (s2Paddr(paddrWidth - 1, OffsetWidth) + 1.U)(paddrWidth - OffsetWidth - 1, 0),
     0.U(ICacheToL2BeatWidth.W)
   )
-  val s2Go = s2Tlb.hit && (!s2NeedMiss || mshrUnit.io.lookupReq.ready)
+  // 队列满时停在 s2。请求不能先写进 MSHR，否则这一拍会重复分配。
+  val s2PushReady = wayLookup.io.lookupPush.ready
+  val s2Go = s2Tlb.hit && (!s2NeedMiss || mshrUnit.io.lookupReq.ready) && s2PushReady
   s2Ready := !s2Valid || s2Go || flush
 
   val s2Fire = s2Valid && !flush && s2Go
   val s2MultiHit = PopCount(s2Way0) > 1.U || (s2Line1 && PopCount(s2Way1) > 1.U)
   assert(!(s2Valid && !flush && s2Tlb.hit && s2MultiHit), "lookup line hits more than one way")
 
-  mshrUnit.io.lookupReq.valid := s2NeedMiss && !flush
+  mshrUnit.io.lookupReq.valid := s2NeedMiss && !flush && s2Tlb.hit && s2PushReady
   mshrUnit.io.lookupReq.bits.beatPAddr := Mux(s2Miss0, s2Line0Beat, s2Line1Beat)
   mshrUnit.io.lookupReq.bits.vAlias := Mux(s2Miss0, setAlias(s2Set0), setAlias(s2Set1))
   mshrUnit.io.lookupReq.bits.crossCacheline := s2Miss0 && s2Miss1
@@ -495,16 +497,21 @@ class ICache extends ICacheModule with ICacheHelper with FrontendHelper{
     val inWindow = slot.U <= f2Meta.endOffset
     inst(slot) := Mux(inWindow, instBits(lo + MinInstBytes * 8 - 1, lo), 0.U)
   }
-  val f2HasData = missState === missUse || (missState === missOff && f2WayKnown && !f2CacheMiss)
+  // 并行取指在 s0 就把各 way 读进来了。后面 refill 才写上的 line，这次读到的是旧数据。
+  // way 已知以后再读一次。串行取指是 way 确定后才读，不用再读。
+  val f2HasData = missState === missUse ||
+    (!f2Meta.parallel && missState === missOff && f2WayKnown && !f2CacheMiss)
   val f2CanResp = f2HasData && io.fetchResp.ready
   f2Ready := !f2Valid || flush || f2CanResp
   f2Fire := f2Valid && f2CanResp && !flush
   f2Pop := f2Fire && f2Meta.parallel
 
-  when (flush) {
+  when (flush || f2Fire) {
     missState := missOff
-  }.elsewhen (f2Fire || (f2Valid && missState === missOff && f2CacheMiss)) {
-    missState := Mux(f2Fire, missOff, missWait)
+  }.elsewhen (f2Valid && missState === missOff && f2CacheMiss) {
+    missState := missWait
+  }.elsewhen (f2Valid && missState === missOff && f2Meta.parallel && f2WayKnown && !rereadConflict) {
+    missState := missRead
   }.elsewhen (missState === missWait && !f2CacheMiss && !rereadConflict) {
     missState := missRead
   }.elsewhen (missState === missRead && !rereadConflict) {
