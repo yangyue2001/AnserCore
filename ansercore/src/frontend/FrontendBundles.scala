@@ -7,6 +7,7 @@ import ansercore.frontend.bpu._
 import ansercore.frontend.ifu._
 import ansercore.frontend.ftq._
 import ansercore.frontend.ifu.predecode.PredecodeInfo
+import ansercore.frontend.ifu.ibuffer.InstPacket
 import ansercore.BackendRedirect
 
 class BPUToFTQIO extends FrontendBundle{
@@ -41,6 +42,7 @@ class IFUToFTQIO  extends FrontendBundle {
 }
 
 class IFUToBackendIO extends FrontendBundle{
+  val inst = Vec(DecodeWidth, Decoupled(new InstPacket))
 }
 
 

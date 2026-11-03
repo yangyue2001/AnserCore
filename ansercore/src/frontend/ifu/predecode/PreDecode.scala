@@ -14,6 +14,7 @@ class PreDecode extends IFUModule with PreDecodeHelper with FrontendHelper {
     val flush          = Input(Bool())
     val fire           = Input(Bool())
     val predecodeInfo  = Output(new PredecodeInfo)
+    val instEnd        = Output(Vec(FetchBlockNumSlots, Bool()))
   }
   val io = IO(new PreDecodeIO)
 
@@ -132,7 +133,8 @@ class PreDecode extends IFUModule with PreDecodeHelper with FrontendHelper {
   predecode.isRVC := VecInit(isRvc.zip(instEnd).map { case (rvc, end) =>
     rvc && end
   })
-  io.predecodeInfo        := predecode
+  io.predecodeInfo := predecode
+  io.instEnd       := instEnd
 
   when(flush) {
     lastIsHalfRviReg := false.B

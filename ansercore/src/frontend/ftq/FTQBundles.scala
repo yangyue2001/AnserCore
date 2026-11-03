@@ -75,6 +75,9 @@ class FTQFetch extends FTQBundle {
   val ftqPtr = new FTQPtr
   val endOffset = UInt(FetchBlockOffsetWidth.W)
   val parallel = Bool()
+  val taken = Bool()
+  val target = UInt(pcWidth.W)
+  val rasTopAddr = UInt(pcWidth.W)
 }
 
 class FTQPosition extends FTQBundle{

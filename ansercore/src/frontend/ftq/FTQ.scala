@@ -273,6 +273,14 @@ class FTQ extends FTQModule with HasCircularQueuePtrHelper {
     fetchEntry.fetchBlock.endOffset,
   )
   ftqFetch.parallel := fetchParallel
+  val fetchFullOffset = (FetchBlockNumSlots - 1).U(FetchBlockOffsetWidth.W)
+  ftqFetch.taken := !fetchBypass && fetchEntry.fetchBlock.taken
+  ftqFetch.target := Mux(
+    fetchBypass,
+    nextPC(s1FetchPC, fetchFullOffset),
+    fetchEntry.fetchBlock.target,
+  )
+  ftqFetch.rasTopAddr := Mux(fetchBypass, 0.U(pcWidth.W), fetchEntry.spec.rasMeta.topAddr)
 
   //commit
   val commitEntry = ftqEntries(popPtr.value)
