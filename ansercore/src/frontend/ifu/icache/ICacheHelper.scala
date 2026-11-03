@@ -99,12 +99,12 @@ trait ICacheHelper{
     when (!crossPage) {
       assert(
         banks === FetchBankCount.U || banks === FetchBankCountMax.U,
-        "完整 fetch 窗口应该落在 3 或 4 个 bank 上",
+        "a full fetch window must cover 3 or 4 banks",
       )
     }.otherwise {
-      assert(banks >= 1.U && banks <= FetchBankCountMax.U, "跨页 fetch 的 bank 数不对")
+      assert(banks >= 1.U && banks <= FetchBankCountMax.U, "cross-page fetch bank count is wrong")
     }
-    assert((mask0 & mask1) === 0.U, "两条 line 的 data bank 不能重叠")
+    assert((mask0 & mask1) === 0.U, "the two lines must not share a data bank")
 
     val got = bytes0 +& bytes1
     out.crossCacheline := cross

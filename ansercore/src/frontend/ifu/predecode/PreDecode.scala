@@ -2,6 +2,7 @@ package ansercore.frontend.ifu.predecode
 
 import chisel3._
 import chisel3.util._
+import utils.Mux1H
 import ansercore.frontend.ifu.IFUBundle
 import ansercore.frontend.ifu.IFUModule
 import ansercore.frontend.FrontendHelper

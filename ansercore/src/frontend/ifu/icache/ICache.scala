@@ -2,11 +2,12 @@ package ansercore.frontend.ifu.icache
 
 import chisel3._
 import chisel3.util._
+import utils.Mux1H
 
 import utils.ReplacementPolicy
 import utils.SinglePortSRAMTemplate
 
-import ansercore.FrontendToMMUBundle
+import ansercore.FrontendToMMUIO
 import ansercore.MMUToFrontendIO
 import ansercore.frontend.ftq.FTQLookup
 import ansercore.frontend.ftq.FTQFetch
@@ -25,11 +26,13 @@ class ICache extends ICacheModule with ICacheHelper with FrontendHelper{
     val lookup = Flipped(Decoupled(new FTQLookup))
 
     //MMU
-    val toMMU = Output(new FrontendToMMUBundle)
+    val toMMU = Output(new FrontendToMMUIO)
     val fromMMU = Input(new MMUToFrontendIO)
     //fetch
     val fetch = Flipped(Decoupled(new FTQFetch)) // fetch s0
     val fetchResp = Decoupled(new ICacheFetchResp) // fetch s2
+    val fetchS0Fire = Output(Bool())
+    val fetchS1Fire = Output(Bool())
     val memReq = Decoupled(new ICacheMemReq)
     val memResp = Flipped(Decoupled(new ICacheMemResp))
   }
@@ -155,10 +158,10 @@ class ICache extends ICacheModule with ICacheHelper with FrontendHelper{
   val s0Fire = s0ValidOut && s1Ready
   io.lookup.ready := s0Ready
 
-  assert(!(s0Fire && s0Line1 && s0Bank0 === s0Bank1), "lookup 的两条 line 打到同一个 tag bank")
-  assert(!(refillS0Fire && refillS1Valid && refillS0Bank === refillS1Bank), "refill 同时读写同一个 tag bank")
+  assert(!(s0Fire && s0Line1 && s0Bank0 === s0Bank1), "lookup lines hit the same tag bank")
+  assert(!(refillS0Fire && refillS1Valid && refillS0Bank === refillS1Bank), "refill reads and writes the same tag bank")
   assert(!(s0Fire && (refillReadBank0 || refillWriteBank0 ||
-    (s0Line1 && (refillReadBank1 || refillWriteBank1)))), "lookup 和 refill 抢同一个 tag bank")
+    (s0Line1 && (refillReadBank1 || refillWriteBank1)))), "lookup and refill use the same tag bank")
 
 //s1
   val s1Valid = RegEnable(s0ValidOut, false.B, s1Ready)
@@ -221,7 +224,7 @@ class ICache extends ICacheModule with ICacheHelper with FrontendHelper{
 
   val s2Fire = s2Valid && !flush && s2Go
   val s2MultiHit = PopCount(s2Way0) > 1.U || (s2Line1 && PopCount(s2Way1) > 1.U)
-  assert(!(s2Valid && !flush && s2Tlb.hit && s2MultiHit), "lookup 同一条 line 命中多个 way")
+  assert(!(s2Valid && !flush && s2Tlb.hit && s2MultiHit), "lookup line hits more than one way")
 
   mshrUnit.io.lookupReq.valid := s2NeedMiss && !flush
   mshrUnit.io.lookupReq.bits.beatPAddr := Mux(s2Miss0, s2Line0Beat, s2Line1Beat)
@@ -263,7 +266,7 @@ class ICache extends ICacheModule with ICacheHelper with FrontendHelper{
 
     assert(
       PopCount(Seq(writeThis, readRefill, readLookup0, readLookup1)) <= 1.U,
-      s"Bank $bankIdx 读写冲突：writeThis, readRefill, readLookup0, readLookup1 最多只能有一个有效！"
+      s"Bank $bankIdx conflict: writeThis, readRefill, readLookup0, readLookup1 must be one-hot"
     )
   }
 
@@ -390,8 +393,8 @@ class ICache extends ICacheModule with ICacheHelper with FrontendHelper{
   }
 
   when (f0Fire && !fetch.parallel && !f0Special) {
-    when (f0Need0) { assert(PopCount(serialWay0) === 1.U, "serial fetch line0 应该只命中一个 way") }
-    when (f0Need1) { assert(PopCount(serialWay1) === 1.U, "serial fetch line1 应该只命中一个 way") }
+    when (f0Need0) { assert(PopCount(serialWay0) === 1.U, "serial fetch line0 must hit one way") }
+    when (f0Need1) { assert(PopCount(serialWay1) === 1.U, "serial fetch line1 must hit one way") }
   }
 
 //s1
@@ -405,6 +408,8 @@ class ICache extends ICacheModule with ICacheHelper with FrontendHelper{
   val f1CanGo = f1Sync && f2Ready
   f1Ready := !f1Valid || flush || f1CanGo
   val f1Fire = f1Valid && f1CanGo && !flush
+  io.fetchS0Fire := f0Fire
+  io.fetchS1Fire := f1Fire
 
   val f1Capture = RegNext(f0Fire, false.B)
   val f1Raw = Wire(Vec(2, Vec(numWays, UInt(InstBitsWidth.W))))
@@ -527,10 +532,10 @@ class ICache extends ICacheModule with ICacheHelper with FrontendHelper{
   io.fetchResp.bits.inst := inst
 
   when (f2Valid && f2HasData && !f2Special && !flush) {
-    when (f2Need0) { assert(PopCount(useWay0) === 1.U, "fetch line0 命中多个 way") }
-    when (f2Need1) { assert(PopCount(useWay1) === 1.U, "fetch line1 命中多个 way") }
+    when (f2Need0) { assert(PopCount(useWay0) === 1.U, "fetch line0 hit more than one way") }
+    when (f2Need1) { assert(PopCount(useWay1) === 1.U, "fetch line1 hit more than one way") }
   }
-  assert(!(f2Valid && !flush && !f2Meta.parallel && f2CacheMiss), "serial fetch 进管道后不应该再 miss")
+  assert(!(f2Valid && !flush && !f2Meta.parallel && f2CacheMiss), "serial fetch must not miss after entering the pipe")
 
   icacheData.zipWithIndex.foreach { case (banks, bankIdx) =>
     val low = bankIdx * DataWidth
@@ -557,7 +562,7 @@ class ICache extends ICacheModule with ICacheHelper with FrontendHelper{
       sram.io.wdata.data := slice
       assert(
         PopCount(Seq(writeThis, readF0, readF2)) <= 1.U,
-        s"data bank $bankIdx way $wayIdx 读写冲突",
+        s"data bank $bankIdx way $wayIdx read write conflict",
       )
     }
   }

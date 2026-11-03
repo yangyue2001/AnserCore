@@ -2,13 +2,15 @@ package ansercore.frontend.bpu.uftb
 
 import chisel3._
 import chisel3.util._
+import utils.Mux1H
 import ansercore.frontend.bpu.BPUParameters
 import utils.SaturateCounter
 import ansercore.frontend.bpu.ftb.FTB
 import ansercore.frontend.bpu.ftb.FTBEntry
 import ansercore.frontend.CFIAttribute
+import ansercore.frontend.FrontendHelper
 
-class UFTB extends UFTBModule with UFTBHelper {
+class UFTB extends UFTBModule with UFTBHelper with FrontendHelper {
   class UFTBIO extends UFTBBundle {
     val s1PC = Input(UInt(pcWidth.W))
     val prediction = Output(new UFTBPrediction)
@@ -42,10 +44,10 @@ class UFTB extends UFTBModule with UFTBHelper {
   val brHit = hitBrSlot.valid
   val tailHit = !hitTailSlot.cfiAttribute.isNone
 
-  val (sequentialTarget, sequentialOffset) = sequentialFetch(s1PC)
-  val fallThroughTarget = prediction.fallThroughTarget := Mux(
+  val (sequentialTarget, sequentialOffset) = sequentialFetch(predictPC)
+  val fallThroughTarget = Mux(
     tailHit,
-    (s1PC + tailSlot.offset + 1.U)(pcWidth - 1, 0),
+    (predictPC + hitTailSlot.offset + 1.U)(pcWidth - 1, 0),
     sequentialTarget,
   )
 
@@ -95,4 +97,6 @@ class UFTB extends UFTBModule with UFTBHelper {
 
   //Output
   io.prediction := prediction
+
+  io.meta := 0.U.asTypeOf(new UFTBMeta)
 }

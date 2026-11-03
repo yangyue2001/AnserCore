@@ -2,6 +2,7 @@ package ansercore.frontend.bpu.ftb
 
 import chisel3._
 import chisel3.util._
+import utils.Mux1H
 import ansercore.frontend.FrontendHelper
 
 class FTB extends FTBModule with FTBHelper with FrontendHelper {
@@ -83,4 +84,10 @@ class FTB extends FTBModule with FTBHelper with FrontendHelper {
   io.meta := meta
   io.resetDown := storage.io.resetDown
   io.predictReq.ready := true.B
+  // 训练这次不接，端口保持空闲。
+  io.ftbTrain.ready := true.B
+  storage.io.trainReadReq.valid := false.B
+  storage.io.trainReadReq.bits := 0.U.asTypeOf(storage.io.trainReadReq.bits)
+  storage.io.writeReq.valid := false.B
+  storage.io.writeReq.bits := 0.U.asTypeOf(storage.io.writeReq.bits)
 }

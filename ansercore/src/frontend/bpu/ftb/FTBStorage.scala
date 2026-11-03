@@ -2,6 +2,7 @@ package ansercore.frontend.bpu.ftb
 
 import chisel3._
 import chisel3.util._
+import utils.Mux1H
 import utils.SinglePortSRAMTemplate
 
 class FTBStorage extends FTBModule with FTBHelper {

@@ -19,6 +19,8 @@ import ansercore.frontend.FrontendHelper
 import ansercore.frontend.FTQToBPUIO
 import ansercore.frontend.BPUToFTQIO
 import ansercore.frontend.CFIAttribute
+import ansercore.frontend.CFITypte
+import ansercore.frontend.RASAction
 
 class BPU extends BPUModule with FrontendHelper {
   class BPUIO extends BPUBundle {
@@ -152,8 +154,8 @@ class BPU extends BPUModule with FrontendHelper {
   val ftbHit = ftbPrediction.branchHit || tailExists
 
   val branchAttribute = Wire(new CFIAttribute)
-  branchAttribute.cfiType := 1.U
-  branchAttribute.rasAction := 0.U
+  branchAttribute.cfiType := CFITypte.conditional
+  branchAttribute.rasAction := RASAction.none
 
   val s2FTBPrediction = Wire(new BPUPrediction)
   s2FTBPrediction.target := Mux(
@@ -212,7 +214,7 @@ class BPU extends BPUModule with FrontendHelper {
 
   val callReturnPC = (s3PC + s3Prediction.endOffset + 1.U)(pcWidth - 1, 0)
   ras.io.specUpate.valid := s3ValidOut && (s3CFIAttribute.hasPush || s3CFIAttribute.hasPop)
-  ras.io.specUpate.bits.rasAction := s3CFIAttribute.rasAction
+  ras.io.specUpate.bits.rasAction := s3CFIAttribute.rasAction.asUInt
   ras.io.specUpate.bits.pushPC := callReturnPC
   val redirectCFIPC = (redirect.startPC + redirect.endOffset)(pcWidth - 1, 0)
   ras.io.recover.valid := redirectValid
@@ -234,23 +236,22 @@ class BPU extends BPUModule with FrontendHelper {
   io.toFTQ.s3Result.valid := s3ValidOut
   io.toFTQ.s3Result.bits := s3Result
 
-  phr.io.s1Fire := s1Fire
   phr.io.s2Fire := s2Fire
-  phr.io.s1Update.valid := s1Fire
-  phr.io.s1Update.bits.cfiPC := s1PC
+  phr.io.s1Update.valid := s1Fire && s1Prediction.taken
+  phr.io.s1Update.bits.startPC := s1PC
   phr.io.s1Update.bits.target := s1Target
   phr.io.s2Override.valid := s2Override
   phr.io.s2Override.bits.taken := s2Prediction.taken
-  phr.io.s2Override.bits.update.cfiPC := s2PC
+  phr.io.s2Override.bits.update.startPC := s2PC
   phr.io.s2Override.bits.update.target := s2Target
   phr.io.s3Override.valid := s3Override
   phr.io.s3Override.bits.taken := s3Prediction.taken
-  phr.io.s3Override.bits.update.cfiPC := s3PC
+  phr.io.s3Override.bits.update.startPC := s3PC
   phr.io.s3Override.bits.update.target := s3Target
   phr.io.redirect.valid := redirectValid
   phr.io.redirect.bits.restore := redirect.meta.phr
   phr.io.redirect.bits.update.taken := redirect.taken
-  phr.io.redirect.bits.update.update.cfiPC := redirectCFIPC
+  phr.io.redirect.bits.update.update.startPC := redirectCFIPC
   phr.io.redirect.bits.update.update.target := redirect.target
   phr.io.trainMeta := io.fromFTQ.train.bits.meta.phr
 }

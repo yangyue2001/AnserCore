@@ -2,7 +2,9 @@ package ansercore.frontend.ifu.ibuffer
 
 import chisel3._
 import chisel3.util._
+import utils.Mux1H
 import ansercore.frontend.ftq.FTQPtr
+import ansercore.frontend.FrontendExcept
 import utils.Rota
 
 class IBuffer extends IBufferModule with IBufferHelper {
@@ -104,6 +106,7 @@ class IBuffer extends IBufferModule with IBufferHelper {
       result.packet(instIdx).ftqPtr := baseFTQ + (blocksBeforeStart + blocksInsideBeforeEnd)
       // endOffset 也取结尾槽：16 位取低半字，32 位取高半字。
       result.packet(instIdx).endOffset := Mux(isRvi, highOffset, lowOffset)
+      result.packet(instIdx).except := FrontendExcept.none
       // 拼不成完整指令就停在 start。后面的指令不再往后看，半截槽本拍也不弹出。
       // 16 位只前进 1 个槽，32 位前进 2 个槽。
       slotCursor(instIdx + 1) := Mux(result.valid(instIdx), start + Mux(isRvc, 1.U, 2.U), start)
@@ -174,6 +177,10 @@ class IBuffer extends IBufferModule with IBufferHelper {
     endOffset,
   )
 
+  val deqHas = instPacketValid.asUInt.orR
+  val deqReady = VecInit(io.deq.zip(instPacketValid).map { case (port, hold) =>
+    !hold || port.ready
+  }).asUInt.andR
   val deqFire = deqHas && deqReady && !flush
   val deqCanLoad = !flush && (!deqHas || deqFire)
   val bufferPopFire = deqCanLoad && !ibufferEmpty && bufferAsm.popCount =/= 0.U
@@ -195,7 +202,7 @@ class IBuffer extends IBufferModule with IBufferHelper {
     bypassLast,
     bypassValid,
     enq.ftqPtr,
-    0.U,
+    0.U(FetchBlockOffsetWidth.W),
   )
   val wantBypass = ibufferEmpty && deqCanLoad && enqValid
   val bypassPopUsed = Mux(wantBypass, bypassAsm.popCount, 0.U)

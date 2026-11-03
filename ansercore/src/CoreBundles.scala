@@ -11,21 +11,6 @@ import ansercore.mmu.pmp.PMPResp
 import ansercore.mmu.pma.PMAReq
 import ansercore.mmu.pma.PMAResp
 import ansercore.frontend.CFIAttribute
-/*
-class BackendToFrontendIO extends YQHBundle{
-  val frontendCsr = Output(new )
-  val redirect = Valid(new )
-
-}
-*/
-
-class FrontEndToMemIO extends YQHBundle{
-
-}
-
-class MemToFrontend extends YQHBundle{
-
-}
 
 class TopToFrontendIO extends YQHBundle{
   val resetVector = Output(UInt(pcWidth.W))
@@ -34,31 +19,27 @@ class TopToFrontendIO extends YQHBundle{
 
 
 class BackendToFrontendIO extends YQHBundle{
-  val redirect = new BackendRedirect
+  val commit = Valid(new FTQPosition)
+  val redirect = Valid(new BackendRedirect)
 }
 
 
 class FrontendToBackendIO extends YQHBundle {
-    // Frontend -> Backend
-    //val fromFTQ     = new FTQToCtrlIO
-    val fromIFU     = new IFUToBackendIO
-    // Backend -> Frontend
-    //val toFTQ       = Flipped(new CtrlToFTQIO)
-    val redirect = Flipped(new BackendRedirect)
-  }
+  val fromIFU = new IFUToBackendIO
+}
 
 
-class FrontendToMMUBundle extends YQHBundle{
+class FrontendToMMUIO extends YQHBundle{
   val itlbReq = Valid(new ITlbReq)
-  val pmpReq = new PMPReq
-  val pmaReq = new PMAReq
+  val pmpReq = Output(new PMPReq)
+  val pmaReq = Output(new PMAReq)
 
 }
 
 class MMUToFrontendIO extends YQHBundle{
-  val itlbResp = new ITLBResp
-  val pmpResp = new PMPResp
-  val pmaResp = new PMAResp
+  val itlbResp = Output(new ITLBResp)
+  val pmpResp = Output(new PMPResp)
+  val pmaResp = Output(new PMAResp)
 }
 
 

@@ -15,7 +15,7 @@ class PHRMeta extends PHRBundle {
 }
 
 class PHRUpdate extends PHRBundle {
-  val cfiPC = UInt(pcWidth.W)
+  val startPC = UInt(pcWidth.W)
   val target = UInt(pcWidth.W)
 }
 

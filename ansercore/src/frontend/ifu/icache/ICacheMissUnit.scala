@@ -2,6 +2,7 @@ package ansercore.frontend.ifu.icache
 
 import chisel3._
 import chisel3.util._
+import utils.Mux1H
 
 // 一次请求固定返回两个 beat。addr 的低位是关键字 beat，不强制为 0。
 // 同一个 id 先回关键字 beat，再回另一拍。last=1 表示第二拍。
@@ -336,7 +337,8 @@ class ICacheMissUnit extends ICacheModule with ICacheHelper {
     }
     when (respSecond) {
       waitRespNext(buf.line) := false.B
-      when (!flush && !entry.flush && !entry.fetch(buf.line)) {
+      // fetch 也要写回 cache。取指看到 miss 后只等 way mask，不直接吃 MSHR 数据。
+      when (!flush && !entry.flush) {
         refillNext(buf.line) := true.B
       }
     }
@@ -402,7 +404,7 @@ class ICacheMissUnit extends ICacheModule with ICacheHelper {
     bufNext.data(0) := Mux(respBeat === 0.U, io.memResp.bits.data, buf.data(0))
     bufNext.data(1) := Mux(respBeat === 1.U, io.memResp.bits.data, buf.data(1))
   }.elsewhen (io.memResp.fire && secondBeat) {
-    val dropData = flush || mshrs(buf.idx).flush || mshrs(buf.idx).fetch(buf.line)
+    val dropData = flush || mshrs(buf.idx).flush
     bufNext.busy := !dropData
     bufNext.hold := !dropData
     bufNext.data(0) := Mux(otherBeat === 0.U, io.memResp.bits.data, buf.data(0))
@@ -438,6 +440,6 @@ class ICacheMissUnit extends ICacheModule with ICacheHelper {
     assert(Mux(secondBeat,
       io.memResp.bits.last && io.memResp.bits.id === Cat(buf.line, buf.idx),
       !io.memResp.bits.last && waiting
-    ), "访存返回的 beat 和当前 buffer 不匹配")
+    ), "memory beat does not match the current buffer")
   }
 }

@@ -31,8 +31,8 @@ class FTQToBackendIO extends FrontendBundle{
 }
 
 class BackendToFTQIO extends FrontendBundle{
-  val commit = Flipped(Valid(new FTQPosition))
-  val redirect = Flipped(Valid(new BackendRedirect))
+  val commit = Valid(new FTQPosition)
+  val redirect = Valid(new BackendRedirect)
 }
 
 class IFUToFTQIO  extends FrontendBundle {

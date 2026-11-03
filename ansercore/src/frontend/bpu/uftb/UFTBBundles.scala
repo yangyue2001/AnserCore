@@ -5,7 +5,6 @@ import chisel3.util._
 
 import ansercore.frontend.bpu.ftb.BranchSlot
 import ansercore.frontend.bpu.ftb.TailSlot
-import ansercore.frontend.bpu.ftb.FtbEntry
 import ansercore.frontend.CFIAttribute
 
 
@@ -28,9 +27,7 @@ class UFTBMeta extends UFTBBundle {
   def isEqual(that: UFTBMeta): Bool = {
     (this.isJalr === that.isJalr) && (this.fallThroughCarry === that.fallThroughCarry) &&
     (this.fallThroughLower === that.fallThroughLower) && (this.brSlot.asUInt === that.brSlot.asUInt) &&
-    (this.tailSlot.valid === that.tailSlot.valid) && (this.tailSlot.offset === that.tailSlot.offset) &&
-    (this.tailSlot.tarStat === that.tailSlot.tarStat) &&(this.tailSlot.share === that.tailSlot.share) &&
-    (this.isJalr || (this.tailSlot.lower === this.tailSlot.lower))
+    (this.tailSlot.asUInt === that.tailSlot.asUInt)
   }
 }
 

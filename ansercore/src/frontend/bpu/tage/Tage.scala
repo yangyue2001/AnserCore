@@ -179,4 +179,21 @@ class TAGE extends TAGEModule with TAGEHelper {
     meta.baseCtr.value := s2Base(brIdx).value
   }
 
+
+  io.prediction := prediction
+  io.meta := tageMeta
+  io.resetDown := resetDown
+  io.predictReq.ready := true.B
+  // 训练这次不接，端口保持空闲。
+  io.tageTrain.ready := true.B
+  tables.foreach { table =>
+    table.io.trainReadReq.valid := false.B
+    table.io.trainReadReq.bits := 0.U.asTypeOf(table.io.trainReadReq.bits)
+    table.io.trainWriteReq.valid := false.B
+    table.io.trainWriteReq.bits := 0.U.asTypeOf(table.io.trainWriteReq.bits)
+  }
+  baseTable.io.trainReadReq.valid := false.B
+  baseTable.io.trainReadReq.bits := 0.U.asTypeOf(baseTable.io.trainReadReq.bits)
+  baseTable.io.trainWriteReq.valid := false.B
+  baseTable.io.trainWriteReq.bits := 0.U.asTypeOf(baseTable.io.trainWriteReq.bits)
 }

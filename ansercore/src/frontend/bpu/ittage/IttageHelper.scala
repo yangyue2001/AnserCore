@@ -2,6 +2,7 @@ package ansercore.frontend.bpu.ittage
 
 import chisel3._
 import chisel3.util._
+import utils.Mux1H
 import ansercore.frontend.bpu.tage.TAGETableInfo
 
 trait ITTAGEHelper {

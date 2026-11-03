@@ -127,6 +127,7 @@ class FTQ extends FTQModule with HasCircularQueuePtrHelper {
   ftqEntries.zipWithIndex.foreach{case(entry, idx) =>
     val state = entry.state
     val nextState = Wire(FTQState())
+    nextState := state
     val commitEn = backendCommitValid && commitRange(idx)
     val entryFlushed = ftqFlush && flushMask(idx)
     val lookupEn = idx.U === lookupPtr.value && lookupFire
@@ -144,12 +145,11 @@ class FTQ extends FTQModule with HasCircularQueuePtrHelper {
     )
     switch(state){
       is(FTQState.lookup){
-        when(lookupEn){
-          when(fetchParallel){
-            nextState := FTQState.waitCommit
-          }.otherwise{
-            nextState := FTQState.fetch
-          }
+        // 指针重合时 lookup 和 fetch 同一拍。fetch 没接住就不能直接等提交，否则这条块再也不会取指。
+        when(lookupEn && fetchParallel && fetchFire){
+          nextState := FTQState.waitCommit
+        }.elsewhen(lookupEn){
+          nextState := FTQState.fetch
         }.otherwise{
           nextState := FTQState.lookup
         }

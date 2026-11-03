@@ -11,6 +11,8 @@ class RAS extends RASModule {
     val recover = Flipped(Valid(new RASRecoverReq))
   }
   val io = IO(new RASIO)
+  io.prediction := 0.U
+  io.meta := 0.U.asTypeOf(new RASMeta)
   //------------------------alias--------------------------
 
   val stack = Reg(Vec(NumEntrys, UInt(pcWidth.W)))

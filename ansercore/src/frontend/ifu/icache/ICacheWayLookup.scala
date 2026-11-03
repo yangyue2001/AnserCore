@@ -20,7 +20,6 @@ class ICacheWayLookup extends ICacheModule with HasCircularQueuePtrHelper {
 
   //-----------------------alias------------------------------//
   val flush = io.flush
-  val pushValid = io.lookupPush.valid
   val lookupPush = io.lookupPush.bits
   val icacheRefillValid = io.icacheRefill.valid
   val icacheRefill = io.icacheRefill.bits
@@ -41,15 +40,15 @@ class ICacheWayLookup extends ICacheModule with HasCircularQueuePtrHelper {
   val exceptStall = exceptValid
   val queued = distanceBetween(pushPtr, popPtr)
 
-  // s2 优先。它 pop 掉队头（或空队列上的 bypass）之后，s0 才能看下一条。
+  // s2 优先。它 pop 掉队头之后，s0 才能看下一条。
+  // 不能同拍 bypass：fetch miss 会回到 MSHR 的 lookup ready，再回到这次 push，形成组合环。
+  // way 先写入队列，下一拍 fetch 再读。
   val s2FromQueue = queued =/= 0.U
-  val s2FromPush = queued === 0.U && pushValid
-  val s2Valid = s2FromQueue || s2FromPush
+  val s2Valid = s2FromQueue
   val s2Takes = io.s2Pop && s2Valid
   val s0UseNext = s2Takes
   val s0FromQueue = Mux(s0UseNext, queued >= 2.U, queued =/= 0.U)
-  val s0FromPush = Mux(s0UseNext, queued === 1.U && pushValid, queued === 0.U && pushValid && !s2Takes)
-  val s0Valid = s0FromQueue || s0FromPush
+  val s0Valid = s0FromQueue
   val s0Takes = io.s0Pop && s0Valid
   val s0QueuePtr = Mux(s0UseNext, popPtr + 1.U, popPtr)
 
@@ -73,8 +72,7 @@ class ICacheWayLookup extends ICacheModule with HasCircularQueuePtrHelper {
 
   val s2DropExcept = s2TakesQueue && exceptValid && popPtr.value === exceptEntry.ptr
   val s0DropExcept = s0TakesQueue && exceptValid && s0QueuePtr.value === exceptEntry.ptr
-  val pushConsumed = pushFire && ((s2Takes && s2FromPush) || (s0Takes && s0FromPush))
-  when(flush || s2DropExcept || s0DropExcept || pushConsumed){
+  when(flush || s2DropExcept || s0DropExcept){
     exceptEntry := 0.U.asTypeOf(new WayLookupExceptionEntry)
   }.elsewhen(pushFire){
     exceptEntry.ptr := pushPtr.value
@@ -130,15 +128,15 @@ class ICacheWayLookup extends ICacheModule with HasCircularQueuePtrHelper {
     except
   }
 
-  val s2Base = Mux(s2FromQueue, entries(popPtr.value), lookupPush.wayLookupInfo)
+  val s2Base = entries(popPtr.value)
   val s2Packet = Wire(new WayLookupPacket)
   s2Packet.wayLookupInfo := withRefill(s2Base)
-  s2Packet.exceptInfo := Mux(s2FromPush, lookupPush.exceptInfo, storedExcept(popPtr.value))
+  s2Packet.exceptInfo := storedExcept(popPtr.value)
 
-  val s0Base = Mux(s0FromQueue, entries(s0QueuePtr.value), lookupPush.wayLookupInfo)
+  val s0Base = entries(s0QueuePtr.value)
   val s0Packet = Wire(new WayLookupPacket)
   s0Packet.wayLookupInfo := withRefill(s0Base)
-  s0Packet.exceptInfo := Mux(s0FromPush, lookupPush.exceptInfo, storedExcept(s0QueuePtr.value))
+  s0Packet.exceptInfo := storedExcept(s0QueuePtr.value)
 
   io.s2Entry.valid := s2Valid
   io.s2Entry.bits := s2Packet

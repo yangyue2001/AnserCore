@@ -5,7 +5,6 @@ import chisel3.util._
 
 class PHR extends PHRModule with PHRHelper {
   class PHRIO extends PHRBundle {
-    val s1Fire = Input(Bool())
     val s2Fire = Input(Bool())
     val s0FoldedPHR = Output(new PHRAllFoldedHistories)
     val s1FoldedPHR = Output(new PHRAllFoldedHistories)

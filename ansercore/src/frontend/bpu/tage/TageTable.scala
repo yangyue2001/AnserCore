@@ -3,6 +3,7 @@ package ansercore.frontend.bpu.tage
 import chisel3._
 import chisel3.experimental.BundleLiterals._
 import chisel3.util._
+import utils.Mux1H
 import utils.SinglePortSRAMTemplate
 import utils.SaturateCounter
 
