@@ -12,7 +12,7 @@ import ansercore.frontend.FTQToBackendIO
 import ansercore.frontend.CFIAttribute
 import ansercore.frontend.bpu.BPUTrainMeta
 
-class FTQ extends FTQModule with HasCircularQueuePtrHelper {
+class FTQ extends FTQModule with HasCircularQueuePtrHelper with FTQHelper {
   class FTQIO extends FTQBundle {
 //ftq <=> bpu
     val fromBPU = Flipped(new BPUToFTQIO)
@@ -64,6 +64,8 @@ class FTQ extends FTQModule with HasCircularQueuePtrHelper {
   val lookupPtr = RegInit(0.U.asTypeOf(new FTQPtr))
   val fetchPtr = RegInit(0.U.asTypeOf(new FTQPtr))
   val popPtr = RegInit(0.U.asTypeOf(new FTQPtr))
+  // 预译码结束前不再发下一块。否则重定向会把下一块的指令配到新的 PC 上。
+  val nextPredecode = RegInit(0.U.asTypeOf(new FTQPtr))
 
   // 后端重定向压过 predecode。两者都没有时，s3 override 冲掉自己和后面的块。
   val bpuOverride = s3ResultValid && s3Override
@@ -75,10 +77,15 @@ class FTQ extends FTQModule with HasCircularQueuePtrHelper {
 
   when(redirectFlush){
     pushPtr := redirectPtr + 1.U
+    nextPredecode := redirectPtr + 1.U
   }.elsewhen(bpuOverride){
     pushPtr := s3FTQPtr
+    nextPredecode := s3FTQPtr
   }.elsewhen(s1FetchFire){
     pushPtr := pushPtr + 1.U
+  }
+  when(!redirectFlush && !bpuOverride && predecodeValid){
+    nextPredecode := predecodePtr + 1.U
   }
 
   when(redirectFlush){
@@ -109,7 +116,11 @@ class FTQ extends FTQModule with HasCircularQueuePtrHelper {
   val flushMask = circularRangMask(flushStart, pushPtr)
 
   val backCommitEntry = ftqEntries(backendCommit.ptr.value)
-  val commitHit = backCommitEntry.fetchBlock.endOffset === backendCommit.offset
+  // 后端在块中间改道时，这一拍就把块结束在重定向的那条指令上。
+  val redirectEndsHere = backendRedirectValid &&
+    backendCommit.ptr === backendPtr &&
+    backendRedirect.redirectPosition.offset === backendCommit.offset
+  val commitHit = backCommitEntry.fetchBlock.endOffset === backendCommit.offset || redirectEndsHere
 
   val commitRange = Mux(
     commitHit,
@@ -118,10 +129,6 @@ class FTQ extends FTQModule with HasCircularQueuePtrHelper {
   )
 
   val fetchParallel = lookupPtr === fetchPtr
-
-  def nextPC(start: UInt, offset: UInt): UInt = {
-    (start + offset + 1.U)(pcWidth - 1, 0)
-  }
 
 //状态机
   ftqEntries.zipWithIndex.foreach{case(entry, idx) =>
@@ -309,7 +316,8 @@ class FTQ extends FTQModule with HasCircularQueuePtrHelper {
   trainMeta.phr := commitEntry.spec.phrMeta
 
 //to BPU
-  io.fromBPU.s1Fetch.ready := !full || popFire
+  // 还有块没完成预译码时不接收新块，避免重定向复用指针后配错指令。
+  io.fromBPU.s1Fetch.ready := distanceBetween(pushPtr, nextPredecode) === 0.U && (!full || popFire)
   io.toBPU.bpuPtr := pushPtr
 
   io.toBPU.train.valid := commitEntry.isCommit
@@ -332,4 +340,15 @@ class FTQ extends FTQModule with HasCircularQueuePtrHelper {
   io.toIFU.fetch.bits := ftqFetch
 
 //to Backend
+  val queryPos    = fromBackend.predQuery
+  val queryEntry  = ftqEntries(queryPos.ptr.value)
+  val queryStart  = queryEntry.fetchBlock.startAddr
+  val queryOffset = queryPos.offset
+  val queryRVC    = queryEntry.isRVC(queryOffset)
+  val predResp    = Wire(chiselTypeOf(io.toBackend.predQueryResp))
+  predResp.pc     := cfiPC(queryStart, queryOffset, queryRVC)
+  predResp.nextPC := nextPC(queryStart, queryOffset)
+  predResp.taken  := queryEntry.fetchBlock.taken
+  predResp.target := queryEntry.fetchBlock.target
+  io.toBackend.predQueryResp := predResp
 }

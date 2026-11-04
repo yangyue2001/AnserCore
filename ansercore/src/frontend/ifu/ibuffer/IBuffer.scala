@@ -90,7 +90,7 @@ class IBuffer extends IBufferModule with IBufferHelper {
 
       result.valid(instIdx) := isRvc || isRvi
       // 16 位高 16 位补 0。32 位是高地址槽在前、低地址槽在后。
-      result.packet(instIdx).inst := Cat(highSlot, lowSlot)
+      result.packet(instIdx).inst := Mux(isRvc, Cat(0.U(16.W), lowSlot), Cat(highSlot, lowSlot))
       // 指令的块尾看结尾槽：16 位看低半字，32 位看高半字。
       result.packet(instIdx).isLastInFetchBlock := Mux(isRvi, highLast, lowLast)
       // ftqPtr 数的是“结尾槽之前”出现过的块尾，结尾槽自己的块尾不算。
@@ -219,10 +219,7 @@ class IBuffer extends IBufferModule with IBufferHelper {
   val storedOffset = Mux(wantBypass, bypassAsm.nextOffset, 0.U)
 
   io.enq.ready := enqReady
-  assert(
-    !enqFire || enq.slotInstEnd(enq.lastSlotOffset),
-    "IBuffer last slot of a fetch block must end an instruction",
-  )
+  // 最后一个槽可以是 32 位指令的低半字，instEnd 为 0，等高半字再拼。
 
   //-----------------------write------------------------------
   val writeValid = Wire(Vec(FetchBlockNumSlots, Bool()))

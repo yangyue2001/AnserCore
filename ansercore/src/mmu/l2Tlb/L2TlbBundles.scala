@@ -2,7 +2,7 @@ package ansercore.mmu.l2Tlb
 
 import chisel3._
 import chisel3.util._
-import ansercore.mmu.MmuConstant._
+import ansercore.mmu.MMUConstant._
 
 
 class ColtPteCacheEntry(implicit info: PteCacheParams) extends PteCacheEntry {

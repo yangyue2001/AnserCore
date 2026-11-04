@@ -2,7 +2,7 @@ package ansercore.mmu.l1Tlb
 
 import chisel3._
 import chisel3.util._
-import ansercore.mmu.MmuConstant.SatpAsidWidth
+import ansercore.mmu.MMUConstant.SatpAsidWidth
 
 abstract class L1TlbBundle extends Bundle with HasL1TlbParameters
 abstract class L1TlbModule extends Module with HasL1TlbParameters

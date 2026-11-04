@@ -1,6 +1,6 @@
 package ansercore.mmu.ptw
 
-import ansercore.mmu.HasMmuParameters
+import ansercore.mmu.HasMMUParameters
 
 
 case class PtwParameters(
@@ -9,5 +9,5 @@ case class PtwParameters(
 }
 
 
-trait HasPtwParameters extends HasMmuParameters {
+trait HasPtwParameters extends HasMMUParameters {
 }

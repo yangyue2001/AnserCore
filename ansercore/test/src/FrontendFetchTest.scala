@@ -2,102 +2,112 @@ package ansercore.frontend
 
 import chisel3._
 import chisel3.util._
-import utils.Mux1H
-import chisel3.util.experimental.BoringUtils
 import chisel3.simulator.EphemeralSimulator._
 import org.scalatest.flatspec.AnyFlatSpec
 import org.scalatest.matchers.should.Matchers
 
 import ansercore.MMUToFrontendIO
 
-// Reset PC is halfword address 2, so the first instruction sits at byte 4.
-// UFTB comes out of reset with tag 0, and PC 0 would hit every way.
-class FrontendFetchHarness extends Module {
-  val io = IO(new Bundle {
-    val instValid   = Output(Bool())
-    val inst        = Output(UInt(32.W))
-    val s1Valid     = Output(Bool())
-    val s1Ready     = Output(Bool())
-    val lookupValid = Output(Bool())
-    val lookupReady = Output(Bool())
-    val fetchValid  = Output(Bool())
-    val fetchReady  = Output(Bool())
-    val itlbValid   = Output(Bool())
-    val memValid    = Output(Bool())
-    val memFire     = Output(Bool())
-    val memAddr     = Output(UInt(64.W))
-    val f0Miss      = Output(Bool())
-    val f0Ok        = Output(Bool())
-    val f2Valid     = Output(Bool())
-    val f2Miss      = Output(Bool())
-    val f2Data      = Output(Bool())
-    val wayValid    = Output(Bool())
-    val refillValid = Output(Bool())
-  })
+// PC is a halfword address. Cache lines are 64 bytes and one fetch block is 24 bytes.
+object FetchProgram {
+  val cacheLineBytes = 64
+  val nop            = BigInt("00000013", 16)
 
-  val frontend = Module(new Frontend)
-  val startPc  = 2.U(frontend.io.resetVector.getWidth.W)
-  frontend.io.resetVector := startPc
+  // addi rd, x0, imm. Low bits are 11, so this is not a compressed or control-flow instruction.
+  def addi(index: Int): BigInt = {
+    val rd  = (index % 31) + 1
+    val imm = index & 0xfff
+    (BigInt(imm) << 20) | (BigInt(rd) << 7) | BigInt(0x13)
+  }
 
-  frontend.io.fromBackend.commit.valid := false.B
-  frontend.io.fromBackend.commit.bits := 0.U.asTypeOf(frontend.io.fromBackend.commit.bits)
-  frontend.io.fromBackend.redirect.valid := false.B
-  frontend.io.fromBackend.redirect.bits := 0.U.asTypeOf(frontend.io.fromBackend.redirect.bits)
-  frontend.io.toBackend.fromIFU.inst.foreach(_.ready := true.B)
-
-  val mmu = Wire(new MMUToFrontendIO)
-  val vpn = frontend.io.toMMU.itlbReq.bits.vpn
-  val ppnPad = mmu.itlbResp.ppn.getWidth - vpn.getWidth
-  mmu.itlbResp.hit := true.B
-  mmu.itlbResp.pageFault := false.B
-  mmu.itlbResp.accessFault := false.B
-  mmu.itlbResp.ppn := (if (ppnPad == 0) vpn else Cat(0.U(ppnPad.W), vpn))
-  mmu.pmpResp.allowFetch := true.B
-  mmu.pmpResp.allowLoad := true.B
-  mmu.pmpResp.allowStore := true.B
-  mmu.pmaResp.instr := true.B
-  mmu.pmaResp.ld := true.B
-  mmu.pmaResp.st := true.B
-  mmu.pmaResp.cacheable := true.B
-  mmu.pmaResp.memory := true.B
-  frontend.io.fromMMU := mmu
-
-  val lineBytes = 64
-  val lineCount = 8
-  val nop = BigInt("00000013", 16)
-  val addi = BigInt("00100093", 16)
-  val lines = (0 until lineCount).map { line =>
-    (0 until lineBytes / 4).foldLeft(BigInt(0)) { (acc, word) =>
-      val byteAddr = line * lineBytes + word * 4
-      val inst = if (byteAddr == 4) addi else nop
-      acc | (inst << (word * 32))
+  def image(startByte: Int, instructions: Seq[BigInt], lineCount: Int): Seq[BigInt] = {
+    val bytes                              = Array.fill(lineCount * cacheLineBytes)(0)
+    def put(addr: Int, inst: BigInt): Unit = {
+      for (byte <- 0 until 4) {
+        bytes(addr + byte) = ((inst >> (8 * byte)) & 0xff).toInt
+      }
+    }
+    for (addr <- 0 until bytes.length by 4) {
+      put(addr, nop)
+    }
+    instructions.zipWithIndex.foreach { case (inst, index) =>
+      put(startByte + index * 4, inst)
+    }
+    (0 until lineCount).map { line =>
+      (0 until cacheLineBytes).foldLeft(BigInt(0)) { (acc, byte) =>
+        acc | (BigInt(bytes(line * cacheLineBytes + byte) & 0xff) << (8 * byte))
+      }
     }
   }
-  val rom = VecInit(lines.map(_.U(512.W)))
-  val nopLine = VecInit(Seq.fill(lineBytes / 4)(nop.U(32.W))).asUInt
+}
 
-  val req = frontend.io.memReq
+class FrontendFetchHarness(startByte: Int, instructions: Seq[BigInt], lineCount: Int) extends Module {
+  require(startByte % 2 == 0, "start byte must be halfword aligned")
+  require(instructions.nonEmpty, "fetch program must contain an instruction")
+  require(
+    startByte + instructions.length * 4 <= lineCount * FetchProgram.cacheLineBytes,
+    "program does not fit in the test memory",
+  )
+
+  val frontend = Module(new Frontend)
+  val fetched  = frontend.io.toBackend.fromIFU.inst
+
+  val io = IO(new Bundle {
+    val valid   = Output(Vec(fetched.length, Bool()))
+    val inst    = Output(Vec(fetched.length, UInt(32.W)))
+    val memFire = Output(Bool())
+    val memAddr = Output(UInt(64.W))
+  })
+
+  frontend.io.resetVector := (startByte / 2).U(frontend.io.resetVector.getWidth.W)
+  frontend.io.fromBackend := 0.U.asTypeOf(chiselTypeOf(frontend.io.fromBackend))
+  fetched.foreach(_.ready := true.B)
+
+  val mmu    = Wire(new MMUToFrontendIO)
+  val vpn    = frontend.io.toMMU.itlbReq.bits.vpn
+  val ppnPad = mmu.itlbResp.ppn.getWidth - vpn.getWidth
+  mmu.itlbResp.hit         := true.B
+  mmu.itlbResp.pageFault   := false.B
+  mmu.itlbResp.accessFault := false.B
+  mmu.itlbResp.ppn         := (if (ppnPad == 0) vpn else Cat(0.U(ppnPad.W), vpn))
+  mmu.pmpResp.allowFetch   := true.B
+  mmu.pmpResp.allowLoad    := true.B
+  mmu.pmpResp.allowStore   := true.B
+  mmu.pmaResp.instr        := true.B
+  mmu.pmaResp.ld           := true.B
+  mmu.pmaResp.st           := true.B
+  mmu.pmaResp.cacheable    := true.B
+  mmu.pmaResp.memory       := true.B
+  frontend.io.fromMMU      := mmu
+
+  val lines   = FetchProgram.image(startByte, instructions, lineCount)
+  val rom     = VecInit(lines.map(_.U(512.W)))
+  val nopLine = VecInit(Seq.fill(FetchProgram.cacheLineBytes / 4)(FetchProgram.nop.U(32.W))).asUInt
+
+  val req  = frontend.io.memReq
   val resp = frontend.io.memResp
   val busy = RegInit(false.B)
-  val id = Reg(chiselTypeOf(req.bits.id))
+  val id   = Reg(chiselTypeOf(req.bits.id))
   val addr = Reg(chiselTypeOf(req.bits.addr))
   val beat = RegInit(0.U(1.W))
 
   req.ready := !busy
   when(req.fire) {
     busy := true.B
-    id := req.bits.id
+    id   := req.bits.id
     addr := req.bits.addr
     beat := 0.U
   }
 
+  // One request is a 64-byte line. addr is a 32-byte beat address, and addr(0) is the critical beat.
   val lineAddr = addr >> 1
-  val inRange = lineAddr < lineCount.U
-  val line = Mux(inRange, rom(lineAddr(2, 0)), nopLine)
+  val inRange  = lineAddr < lineCount.U
+  val lineIdx  = lineAddr(log2Ceil(lineCount) - 1, 0)
+  val line     = Mux(inRange, rom(lineIdx), nopLine)
   val critical = addr(0)
-  val selHigh = Mux(beat === 0.U, critical, !critical)
-  resp.valid := busy
-  resp.bits.id := id
+  val selHigh  = Mux(beat === 0.U, critical, !critical)
+  resp.valid     := busy
+  resp.bits.id   := id
   resp.bits.data := Mux(selHigh, line(511, 256), line(255, 0))
   resp.bits.last := beat === 1.U
   when(resp.fire) {
@@ -108,88 +118,81 @@ class FrontendFetchHarness extends Module {
     }
   }
 
-  val fetched = frontend.io.toBackend.fromIFU.inst
-  io.instValid := fetched.map(_.valid).reduce(_ || _)
-  io.inst := Mux1H(PriorityEncoderOH(VecInit(fetched.map(_.valid)).asUInt), VecInit(fetched.map(_.bits.inst)))
-  io.s1Valid := BoringUtils.bore(frontend.bpu.io.toFTQ.s1Fetch.valid)
-  io.s1Ready := BoringUtils.bore(frontend.bpu.io.toFTQ.s1Fetch.ready)
-  io.lookupValid := BoringUtils.bore(frontend.ftq.io.toIFU.lookUp.valid)
-  io.lookupReady := BoringUtils.bore(frontend.ftq.io.toIFU.lookUp.ready)
-  io.fetchValid := BoringUtils.bore(frontend.ftq.io.toIFU.fetch.valid)
-  io.fetchReady := BoringUtils.bore(frontend.ftq.io.toIFU.fetch.ready)
-  io.itlbValid := frontend.io.toMMU.itlbReq.valid
-  io.memValid := frontend.io.memReq.valid
-  io.memFire := frontend.io.memReq.fire
-  io.memAddr := frontend.io.memReq.bits.addr
-  val icache = frontend.ifu.icache
-  io.f0Miss := BoringUtils.bore(icache.f0Miss)
-  io.f0Ok := BoringUtils.bore(icache.f0SerialOK)
-  io.f2Valid := BoringUtils.bore(icache.f2Valid)
-  io.f2Miss := BoringUtils.bore(icache.f2CacheMiss)
-  io.f2Data := BoringUtils.bore(icache.f2HasData)
-  io.wayValid := BoringUtils.bore(icache.wayLookup.io.s0Entry.valid)
-  io.refillValid := BoringUtils.bore(icache.mshrUnit.io.refill.valid)
+  io.valid   := VecInit(fetched.map(_.valid))
+  io.inst    := VecInit(fetched.map(_.bits.inst))
+  io.memFire := req.fire
+  io.memAddr := req.bits.addr
 }
 
 class FrontendFetchTest extends AnyFlatSpec with Matchers {
-  "Frontend" should "fetch the instruction at the reset PC" in {
-    simulate(new FrontendFetchHarness) { dut =>
+  private def fetch(
+    startByte:    Int,
+    instructions: Seq[BigInt],
+    limit:        Int,
+  ): (Seq[BigInt], Set[Int], Int) = {
+    val got    = scala.collection.mutable.ArrayBuffer.empty[BigInt]
+    val lines  = scala.collection.mutable.Set.empty[Int]
+    var cycles = 0
+    var hole   = false
+    simulate(new FrontendFetchHarness(startByte, instructions, lineCount = 16)) { dut =>
       dut.reset.poke(true.B)
       dut.clock.step(2)
       dut.reset.poke(false.B)
 
-      var found = false
-      var inst = BigInt(0)
-      var cycle = 0
-      var s1 = 0
-      var lookup = 0
-      var lookupReady = 0
-      var fetch = 0
-      var fetchReady = 0
-      var itlb = 0
-      var memValid = 0
-      var memFire = 0
-      var memAddr = BigInt(0)
-      var f0Miss = 0
-      var f0Ok = 0
-      var f2Valid = 0
-      var f2Miss = 0
-      var f2Data = 0
-      var wayValid = 0
-      var refill = 0
-      while (!found && cycle < 8000) {
-        if (dut.io.s1Valid.peek().litToBoolean) s1 += 1
-        if (dut.io.lookupValid.peek().litToBoolean) lookup += 1
-        if (dut.io.lookupReady.peek().litToBoolean) lookupReady += 1
-        if (dut.io.fetchValid.peek().litToBoolean) fetch += 1
-        if (dut.io.fetchReady.peek().litToBoolean) fetchReady += 1
-        if (dut.io.itlbValid.peek().litToBoolean) itlb += 1
-        if (dut.io.memValid.peek().litToBoolean) memValid += 1
-        if (dut.io.memFire.peek().litToBoolean) {
-          memFire += 1
-          memAddr = dut.io.memAddr.peek().litValue
+      while (got.size < instructions.length && cycles < limit) {
+        var seenInvalid = false
+        for (port <- 0 until dut.io.valid.length) {
+          val valid = dut.io.valid(port).peek().litToBoolean
+          if (!valid) {
+            seenInvalid = true
+          } else {
+            if (seenInvalid) hole = true
+            if (got.size < instructions.length) got += dut.io.inst(port).peek().litValue
+          }
         }
-        if (dut.io.f0Miss.peek().litToBoolean) f0Miss += 1
-        if (dut.io.f0Ok.peek().litToBoolean) f0Ok += 1
-        if (dut.io.f2Valid.peek().litToBoolean) f2Valid += 1
-        if (dut.io.f2Miss.peek().litToBoolean) f2Miss += 1
-        if (dut.io.f2Data.peek().litToBoolean) f2Data += 1
-        if (dut.io.wayValid.peek().litToBoolean) wayValid += 1
-        if (dut.io.refillValid.peek().litToBoolean) refill += 1
-        if (dut.io.instValid.peek().litToBoolean) {
-          found = true
-          inst = dut.io.inst.peek().litValue
-        } else {
+        if (dut.io.memFire.peek().litToBoolean) {
+          lines += (dut.io.memAddr.peek().litValue >> 1).toInt
+        }
+        if (got.size < instructions.length) {
           dut.clock.step()
-          cycle += 1
+          cycles += 1
         }
       }
+    }
+    hole shouldBe false
+    (got.toSeq, lines.toSet, cycles)
+  }
 
-      println(
-        s"cycles=$cycle found=$found s1=$s1 lookup=$lookup fetch=$fetch fetchReady=$fetchReady itlb=$itlb memFire=$memFire memAddr=0x${memAddr.toString(16)} f0Miss=$f0Miss f0Ok=$f0Ok way=$wayValid f2Valid=$f2Valid f2Miss=$f2Miss f2Data=$f2Data refill=$refill"
-      )
-      found shouldBe true
-      inst shouldBe BigInt("00100093", 16)
+  "Frontend" should "fetch the instruction at the reset PC" in {
+    val addi             = BigInt("00100093", 16)
+    val (got, _, cycles) = fetch(startByte = 4, Seq(addi), limit = 8000)
+    println(s"reset-pc cycles=$cycles")
+    got shouldBe Seq(addi)
+  }
+
+  // Byte 46 makes the first 24-byte block cross a cache line, and instruction 4 itself
+  // occupies bytes 62..65. Later blocks cross the following lines while both sides still miss.
+  "Frontend" should "fetch sequential instructions across cache-line misses" in {
+    val count                = 72
+    val startByte            = 46
+    val instructions         = (0 until count).map(FetchProgram.addi)
+    val (got, lines, cycles) = fetch(startByte, instructions, limit = 30000)
+    val lastByte             = startByte + count * 4 - 1
+    val covered              = (startByte / FetchProgram.cacheLineBytes) to (lastByte / FetchProgram.cacheLineBytes)
+    println(
+      s"stream cycles=$cycles instructions=${got.size} lines=${lines.toSeq.sorted.mkString(",")} covered=${covered.mkString(",")}"
+    )
+
+    got.length shouldBe instructions.length
+    got.zip(instructions).zipWithIndex.foreach { case ((actual, expected), index) =>
+      withClue(s"instruction $index at byte ${startByte + index * 4}: ") {
+        actual shouldBe expected
+      }
+    }
+    covered.foreach { line =>
+      withClue(s"cache line $line was not requested, saw ${lines.toSeq.sorted.mkString(",")}: ") {
+        lines.contains(line) shouldBe true
+      }
     }
   }
 }

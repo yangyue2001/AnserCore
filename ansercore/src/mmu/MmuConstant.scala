@@ -13,7 +13,7 @@ object SvMode {
   case object Sv57 extends SvMode {val Levels = 5}
 }
 
-object MmuConstant{
+object MMUConstant{
   val PageOffsetWidth:Int = 12
   val LevelVpnWidth = 9
   val NapotWidth: Int = 1

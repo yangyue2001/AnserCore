@@ -11,32 +11,35 @@ import ansercore.mmu.pmp.PMPResp
 import ansercore.mmu.pma.PMAReq
 import ansercore.mmu.pma.PMAResp
 import ansercore.frontend.CFIAttribute
+import ansercore.frontend.FTQToBackendIO
 
-class TopToFrontendIO extends YQHBundle{
+class TopToFrontendIO extends AnserBundle{
   val resetVector = Output(UInt(pcWidth.W))
   val hartId = Output(UInt(hartIdWidth.W))
 }
 
 
-class BackendToFrontendIO extends YQHBundle{
+class BackendToFrontendIO extends AnserBundle{
   val commit = Valid(new FTQPosition)
   val redirect = Valid(new BackendRedirect)
+  val predQuery = Output(new FTQPosition)
 }
 
 
-class FrontendToBackendIO extends YQHBundle {
+class FrontendToBackendIO extends AnserBundle {
   val fromIFU = new IFUToBackendIO
+  val fromFTQ = new FTQToBackendIO
 }
 
 
-class FrontendToMMUIO extends YQHBundle{
+class FrontendToMMUIO extends AnserBundle{
   val itlbReq = Valid(new ITlbReq)
   val pmpReq = Output(new PMPReq)
   val pmaReq = Output(new PMAReq)
 
 }
 
-class MMUToFrontendIO extends YQHBundle{
+class MMUToFrontendIO extends AnserBundle{
   val itlbResp = Output(new ITLBResp)
   val pmpResp = Output(new PMPResp)
   val pmaResp = Output(new PMAResp)
@@ -44,7 +47,7 @@ class MMUToFrontendIO extends YQHBundle{
 
 
 // FrontEnd <=> BackEnd
-class BackendRedirect extends YQHBundle{
+class BackendRedirect extends AnserBundle{
   val redirectPosition = new FTQPosition
   val target = UInt(pcWidth.W)
   val taken = Bool()

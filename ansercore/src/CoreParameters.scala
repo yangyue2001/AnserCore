@@ -5,8 +5,8 @@ import chisel3.util._
 
 import ansercore.CoreConstant
 import ansercore.frontend.FrontendParameters
-import ansercore.mmu.MmuParameters
-import ansercore.mmu.MmuConstant
+import ansercore.mmu.MMUParameters
+import ansercore.mmu.MMUConstant
 
 case class Parameters(
   paddrBits: Int = 56,
@@ -14,11 +14,11 @@ case class Parameters(
   frontendBlockBytes: Int = 24,
 
   frontendParameters: FrontendParameters = FrontendParameters(),
-  mmuParameters: MmuParameters = MmuParameters(),
+  mmuParameters: MMUParameters = MMUParameters(),
 )
 
 
-trait HasYQHParameters{
+trait HasAnserParameters{
   implicit val p : Parameters = Parameters()
 
   def coreParams = p
@@ -37,8 +37,8 @@ trait HasYQHParameters{
   def RobIdxWidth = 32
 
   //MMU
-  def PageOffsetWidth = MmuConstant.PageOffsetWidth
-  def vpnWidth = p.mmuParameters.svMode.Levels * MmuConstant.LevelVpnWidth
+  def PageOffsetWidth = MMUConstant.PageOffsetWidth
+  def vpnWidth = p.mmuParameters.svMode.Levels * MMUConstant.LevelVpnWidth
   def vaddrWidth = vpnWidth + PageOffsetWidth
   def ppnWidth = paddrWidth - PageOffsetWidth
   //Cache

@@ -3,7 +3,7 @@ package ansercore.mmu.ptw
 import chisel3._
 import chisel3.util._
 
-import ansercore.mmu.MmuConstant._
+import ansercore.mmu.MMUConstant._
 import ansercore.mmu.Pbmt
 
 class FlagEntry extends Bundle{

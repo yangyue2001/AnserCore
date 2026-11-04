@@ -4,8 +4,8 @@ package ansercore.mmu.l2Tlb
 import chisel3._
 import chisel3.util._
 
-import ansercore.mmu.HasMmuParameters
-import ansercore.mmu.MmuConstant.ColtFactorWidth
+import ansercore.mmu.HasMMUParameters
+import ansercore.mmu.MMUConstant.ColtFactorWidth
 
 case class PteCacheParams(
   val size: Int,
@@ -26,7 +26,7 @@ case class L2TlbParameters(
 }
 
 
-trait HasL2TlbParameters extends HasMmuParameters {
+trait HasL2TlbParameters extends HasMMUParameters {
   def l2TlbParameters = mmuParameters.l2TlbParameters
 
 

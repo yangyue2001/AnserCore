@@ -63,21 +63,25 @@ class PreDecode extends IFUModule with PreDecodeHelper with FrontendHelper {
   }
 
   //-----------------------check---------------------------------------//
-  // predEndOffset 由取指保证，一定小于块内槽数，并且一定在本页内。
   // not-taken 可以停在 32 位指令的低半字，下一块再拼完。
   // taken 必须停在一条完整的控制流指令上，否则终点无效，继续看到本页末尾。
+  // 旁路取指会把终点填成整块。跨页时这个终点不在本页窗口内，同样无效。
   val (crossPage, pageEndOffset) = getPageEndSlot(instReq.startPC)
   val predEndOffsetOH            = UIntToOH(instReq.predEndOffset, FetchBlockNumSlots)
   val predEndIsInst              = Mux1H(predEndOffsetOH, instEnd)
   val predEndCfi                 = Mux1H(predEndOffsetOH, cfiAttribute)
   val predEndIsCfi               = predEndCfi.branch || predEndCfi.jal || predEndCfi.jalr
-  val validPredEnd               = !instReq.predTaken || (predEndIsInst && predEndIsCfi)
+  // 取指旁路先按整块终点送来。跨页时 ICache 只回本页半字，页外是 0。
+  // 0 的低两位不是 11，会被当成压缩指令。终点超出本页窗口就无效。
+  val windowEnd                  = Mux(crossPage, pageEndOffset, (FetchBlockNumSlots - 1).U)
+  val predEndInWindow            = instReq.predEndOffset <= windowEnd
+  val validPredEnd               = predEndInWindow && (!instReq.predTaken || (predEndIsInst && predEndIsCfi))
 
   val uncondTaken = VecInit(cfiAttribute.zip(instEnd).map { case (cfi, end) =>
     end && (cfi.jal || cfi.jalr)
   })
 
-  val fallThroughOffset = Mux(crossPage, pageEndOffset, (FetchBlockNumSlots - 1).U)
+  val fallThroughOffset = windowEnd
   val maxOffset         = Mux(validPredEnd, instReq.predEndOffset, fallThroughOffset)
   val inRange           = VecInit(uncondTaken.zipWithIndex.map { case (taken, idx) =>
     taken && idx.U(FetchBlockOffsetWidth.W) <= maxOffset

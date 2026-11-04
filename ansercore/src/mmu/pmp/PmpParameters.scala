@@ -3,8 +3,8 @@ package ansercore.mmu.pmp
 import chisel3._
 import chisel3.util._
 
-import ansercore.mmu.HasMmuParameters
-import ansercore.mmu.MmuConstant
+import ansercore.mmu.HasMMUParameters
+import ansercore.mmu.MMUConstant
 
 case class PmpParameters(
   val isaNumEntrys: Int = 64,   // only  0 , 16 ,64  isa 规定的
@@ -13,10 +13,10 @@ case class PmpParameters(
   require(realNumEntrys <= isaNumEntrys)
 }
 
-trait HasPmpParameters extends HasMmuParameters{
+trait HasPmpParameters extends HasMMUParameters{
   val pmpParameters = mmuParameters.pmpParameters
 
   def realNumEntrys = pmpParameters.realNumEntrys
-  def pmpAlignWidth = log2Ceil(MmuConstant.AlignmentGranule)
+  def pmpAlignWidth = log2Ceil(MMUConstant.AlignmentGranule)
   def pmpAddrWidth = paddrWidth - pmpAlignWidth
 }

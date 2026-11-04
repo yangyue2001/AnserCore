@@ -3,7 +3,7 @@ package ansercore.mmu.l2Tlb
 
 import chisel3._
 import chisel3.util._
-import ansercore.mmu.MmuConstant._
+import ansercore.mmu.MMUConstant._
 import ansercore.mmu.Pbmt
 
 abstract class L2TlbBundle extends Bundle with HasL2TlbParameters

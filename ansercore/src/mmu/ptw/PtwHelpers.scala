@@ -2,7 +2,7 @@ package ansercore.mmu.ptw
 
 import chisel3._
 import chisel3.util._
-import ansercore.mmu.MmuConstant.PpnWidth
+import ansercore.mmu.MMUConstant.PpnWidth
 
 trait PtwHelpers {
   this: HasPtwParameters =>

@@ -2,13 +2,14 @@ package ansercore.mmu.pmp
 
 import chisel3._
 import chisel3.util._
+import utils.Mux1H
 
 class Pmp(
   numCheckPorts: Int = 1
 ) extends PmpModule with PmpHelpers{
   class PmpIO extends PmpBundle{
-    val checkReq = Input(Vec(numCheckPorts, new PmpReq))
-    val pmpResp = Output(Vec(numCheckPorts, new PmpResp))
+    val checkReq = Input(Vec(numCheckPorts, new PMPReq))
+    val pmpResp = Output(Vec(numCheckPorts, new PMPResp))
   }
 
   val io = IO(new PmpIO)
@@ -17,7 +18,7 @@ class Pmp(
   val pmpCfg = Seq.fill(realNumEntrys){RegInit(0.U.asTypeOf(new PmpCfgEntry))}
   val pmpAddr = Seq.fill(realNumEntrys){RegInit(0.U.asTypeOf(new PmpAddrEntry))}
 
-  val pmpResp = Wire(Vec(numCheckPorts, new PmpResp))
+  val pmpResp = Wire(Vec(numCheckPorts, new PMPResp))
   for(req <- (0 until numCheckPorts)){
     val reqAddr = checkReq(req).pAddr
     val reqPriv = checkReq(req).privMode
@@ -37,11 +38,11 @@ class Pmp(
     val lowestHitIdxOH = PriorityEncoderOH(matchVec)
     val matchHIt = matchVec.reduce(_ || _)
     val hitPmp = Mux1H(lowestHitIdxOH, pmpCfg)
-    val defaultResp = Wire(new PmpResp)
+    val defaultResp = Wire(new PMPResp)
     defaultResp.allowFetch := true.B
     defaultResp.allowLoad := true.B
     defaultResp.allowStore := true.B
-    //pmpResp(req):= Mux(matchHIt && (!reqPriv === MMode.U || hitPmp.l) ,new PmpResp, ??? )
+    //pmpResp(req):= Mux(matchHIt && (!reqPriv === MMode.U || hitPmp.l) ,new PMPResp, ??? )
   }
 
   io.pmpResp := pmpResp

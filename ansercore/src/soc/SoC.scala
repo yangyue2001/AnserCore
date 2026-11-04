@@ -8,23 +8,45 @@ package soc
 
 import chisel3._
 
-import circt.stage.ChiselStage
+import _root_.circt.stage.ChiselStage
+import ansercore.AnserCore
+import ansercore.backend.softBackend.SoftRetire
 import device.axi._
 
-// Empty SoC: the core is the only master. Every address reaches a DECERR slave.
-class SoC(val params: AXI4Params = AXI4Params()) extends Module {
-  val core = Module(new AnserCore(params))
+// The core fetches through one AXI master. RAM lives at memBase; other addresses stall.
+class SoC(
+  val params: AXI4Params = AXI4Params(addrBits = 56, dataBits = 256),
+  val memBase: Long = 0x80000000L,
+  val memBytes: Long = 128L * 1024 * 1024,
+) extends Module {
+  val io = IO(new Bundle {
+    val retire = Output(new SoftRetire)
+  })
+
+  require(memBytes >= 64 && (memBytes & (memBytes - 1)) == 0, "AXI memory size must be a power of two")
+  require((memBase & (memBytes - 1)) == 0, "AXI memory base must be aligned to its size")
+  require(params.dataBits >= 64 && params.dataBits % 64 == 0, "AXI data width must be a multiple of 8 bytes")
+
+  val core = Module(new AnserCore)
+  // resetVector counts halfwords. The first fetch is the first byte of AXI memory.
+  core.io.resetVector := (memBase >>> 1).U(core.io.resetVector.getWidth.W)
+
+  val bridge = Module(new ICacheToAXI(params))
+  bridge.io.memReq <> core.io.memReq
+  bridge.io.memResp <> core.io.memResp
+
   val xbar = Module(
     new AXI4Xbar(
       nMasters   = 1,
-      slaveAddrs = Seq(Seq(AXI4AddrSet(0, (BigInt(1) << params.addrBits) - 1))),
+      slaveAddrs = Seq(Seq(AXI4AddrSet(memBase, memBytes - 1))),
       params     = params,
     )
   )
-  val error = Module(new AXI4Error(xbar.outParams))
+  val mem = Module(new AXI4Memory(memBytes, memBase, xbar.outParams))
 
-  xbar.io.in(0) <> core.io.axi
-  error.io <> xbar.io.out(0)
+  xbar.io.in(0) <> bridge.io.axi
+  mem.io <> xbar.io.out(0)
+  io.retire := core.io.retire
 }
 
 object Main extends App {

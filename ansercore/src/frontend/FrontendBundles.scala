@@ -9,6 +9,7 @@ import ansercore.frontend.ftq._
 import ansercore.frontend.ifu.predecode.PredecodeInfo
 import ansercore.frontend.ifu.ibuffer.InstPacket
 import ansercore.BackendRedirect
+import ansercore.FrontendToBackendIO
 
 class BPUToFTQIO extends FrontendBundle{
   val s1Fetch = Decoupled(UInt(pcWidth.W))
@@ -27,22 +28,34 @@ class FTQToIFUIO extends FrontendBundle{
   val fetch = Decoupled(new FTQFetch)
 }
 
-class FTQToBackendIO extends FrontendBundle{
-}
-
-class BackendToFTQIO extends FrontendBundle{
-  val commit = Valid(new FTQPosition)
-  val redirect = Valid(new BackendRedirect)
-}
-
 class IFUToFTQIO  extends FrontendBundle {
   val ftqPtr = new FTQPtr
   val startPc = UInt(pcWidth.W)
   val preDecodeInfo = new PredecodeInfo
 }
 
+
 class IFUToBackendIO extends FrontendBundle{
   val inst = Vec(DecodeWidth, Decoupled(new InstPacket))
+}
+
+
+class QuerResp extends FrontendBundle {
+  val pc     = UInt(pcWidth.W)
+  val nextPC = UInt(pcWidth.W)
+  val taken  = Bool()
+  val target = UInt(pcWidth.W)
+}
+
+class BackendToFTQIO extends FrontendBundle {
+  val commit    = Valid(new FTQPosition)
+  val redirect  = Valid(new BackendRedirect)
+  val predQuery = Output(new FTQPosition)
+}
+
+
+class FTQToBackendIO extends FrontendBundle{
+  val predQueryResp = Output(new QuerResp)
 }
 
 

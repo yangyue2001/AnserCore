@@ -2,7 +2,7 @@ package ansercore.mmu.l1Tlb
 
 import chisel3._
 import chisel3.util._
-import ansercore.mmu.HasMmuParameters
+import ansercore.mmu.HasMMUParameters
 
 class PteCacheParams(
   val size: Int,
@@ -18,7 +18,7 @@ case class L1TlbParameters(
 }
 
 
-trait HasL1TlbParameters extends HasMmuParameters {
+trait HasL1TlbParameters extends HasMMUParameters {
   def l1TlbParameters = mmuParameters.l1TlbParameters
 
   def dtlbMissIdWidth = log2Ceil(l1TlbParameters.dtlbOutstanding)

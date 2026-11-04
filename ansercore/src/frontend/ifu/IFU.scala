@@ -79,15 +79,22 @@ class IFU extends IFUModule {
 
   val predecodeInfo = predecode.io.predecodeInfo
   val instEnd       = predecode.io.instEnd
-  // 32 位指令被截成低半字时，半字留在 predecode，IBuffer 只收完整指令。
+  // 块可以停在 32 位指令的低半字。这个槽 instEnd=0，必须留给 IBuffer，
+  // 下一块的 slot0 才拼得回原来的指令。
+  val endSlot       = predecodeInfo.endOffset
+  val trailingHalf  = !instEnd(endSlot)
   val hasInst       = WireDefault(false.B)
   val lastSlot      = WireDefault(0.U(FetchBlockOffsetWidth.W))
   for (idx <- 0 until FetchBlockNumSlots) {
     val slot = idx.U(FetchBlockOffsetWidth.W)
-    when(instEnd(idx) && slot <= predecodeInfo.endOffset) {
+    when(instEnd(idx) && slot <= endSlot) {
       hasInst  := true.B
       lastSlot := slot
     }
+  }
+  when(trailingHalf) {
+    hasInst  := true.B
+    lastSlot := endSlot
   }
 
   val respHold = resp.valid && !io.flush

@@ -39,6 +39,8 @@ class Frontend extends FrontendModule {
   ftq.io.fromIFU <> ifu.io.toFTQ
   ftq.io.fromBackend.commit <> io.fromBackend.commit
   ftq.io.fromBackend.redirect <> io.fromBackend.redirect
+  ftq.io.fromBackend.predQuery := io.fromBackend.predQuery
+  io.toBackend.fromFTQ <> ftq.io.toBackend
 
   ifu.io.flush := io.fromBackend.redirect.valid
   ifu.io.fromMMU <> io.fromMMU

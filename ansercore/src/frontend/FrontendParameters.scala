@@ -5,7 +5,7 @@ import chisel3.util._
 import ansercore.frontend.bpu.BPUParameters
 import ansercore.frontend.ifu.IFUParameters
 import ansercore.frontend.ftq.FTQParameters
-import ansercore.HasYQHParameters
+import ansercore.HasAnserParameters
 
 case class FrontendParameters(
     bpuParameters:            BPUParameters = BPUParameters(),
@@ -16,7 +16,7 @@ case class FrontendParameters(
 }
 
 
-trait HasFrontendParameters extends HasYQHParameters {
+trait HasFrontendParameters extends HasAnserParameters {
   def frontendParameters = coreParams.frontendParameters
 
   def FTQSize = frontendParameters.ftqParameters.ftqSize
