@@ -35,9 +35,11 @@ object ProbeModule {
     }
 
     val hw = ProbeDpi.flatten(delayed)
+    // valid is ProbeExt.enable. Delay shifts it with the data. It is not a word.
+    val payload = hw.filterNot(_._1 == "valid")
     require(
-      hw.nonEmpty && hw.length <= ProbeDpi.maxWords,
-      s"${gen.desiredCppName} has ${hw.length} words; limit is ${ProbeDpi.maxWords}"
+      payload.nonEmpty && payload.length <= ProbeDpi.maxWords,
+      s"${gen.desiredCppName} has ${payload.length} words; limit is ${ProbeDpi.maxWords}"
     )
     val spec = ProbeSpec(
       kind,
@@ -45,7 +47,7 @@ object ProbeModule {
       extPrefix,
       gen.desiredModuleName,
       gen.desiredCppName,
-      hw.map { case (name, data) => ProbeField(name, data.getWidth) }
+      payload.map { case (name, data) => ProbeField(name, data.getWidth) }
     )
     val key = s"$kind.${spec.moduleName}"
     specs.get(key).foreach { old =>

@@ -38,11 +38,12 @@ class DiffCSR extends Bundle {
   val fcsr = UInt(64.W)
 }
 
-// Sampled only when the ROB commits. valid is the DPI enable. A nested
-// commit(i).valid does not enable the probe.
+// valid is only ProbeExt.enable. Delay shifts it with the payload.
+// The DPI call itself is the sample, so valid is not one of the words.
 // xrf, frf, csr, and pc are the architectural state after these commits.
 class DiffArchCommit(commitWidth: Int = 1) extends DifftestBundle {
   require(commitWidth > 0)
+  val valid = Bool()
   val commit = Vec(commitWidth, new DiffArchCommitInfo)
   val xrf = Vec(32, UInt(64.W))
   val frf = Vec(32, UInt(64.W))

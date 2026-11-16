@@ -177,16 +177,15 @@ uint64_t MemoryService::read_word(uint64_t offset) {
 
 unsigned char MemoryService::accept(uint64_t offset, unsigned int id,
                                     unsigned char is_write) {
-  constexpr uint64_t kLineBytes = 64;
   uint64_t bytes = static_cast<uint64_t>(words_.size()) * 8ull;
-  if (offset % kLineBytes != 0) {
+  if (offset % 8 != 0) {
     std::fprintf(stderr,
-                 "memory request is not 64-byte aligned: offset 0x%" PRIx64 "\n",
+                 "memory request is not 8-byte aligned: offset 0x%" PRIx64 "\n",
                  offset);
     failed_ = true;
     return 0;
   }
-  if (bytes < kLineBytes || offset > bytes - kLineBytes) {
+  if (offset >= bytes) {
     std::fprintf(stderr, "memory request out of range: offset 0x%" PRIx64 "\n",
                  offset);
     failed_ = true;

@@ -28,7 +28,7 @@ class MemoryService final : public SimService {
   const char* name() const override { return "memory"; }
   bool on_posedge() override;
 
-  // offset is the first byte of a 64-byte line.
+  // offset is an 8-byte-aligned byte address inside RAM.
   unsigned char accept(uint64_t offset, unsigned int id,
                        unsigned char is_write);
   // offset is an 8-byte-aligned word.

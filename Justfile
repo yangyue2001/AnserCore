@@ -56,7 +56,9 @@ softfloat:
 
 sv:
     #!/usr/bin/env zsh
-    mill -i ansercore.run
+    set -euo pipefail
+    rm -rf "$PRJ_ROOT/out/verilog"
+    mill -i ansercore.runMain soc.Main
     echo "SystemVerilog files are generated."
 
 _compile target: softfloat dramsim3 sv
@@ -74,6 +76,9 @@ _compile target: softfloat dramsim3 sv
     found=$(find $csrc_dirs \( -name '*.cc' -o -name '*.cpp' -o -name '*.c' \))
     if [[ -n $found ]]; then
         csrc+=(${(f)found})
+    fi
+    if [[ -f {{BUILD_DIR}}/verilog/probes.cpp ]]; then
+        csrc+=({{BUILD_DIR}}/verilog/probes.cpp)
     fi
     vltsrc=(${(f)"$(find $PRJ_ROOT -name '*.vlt')"})
 
@@ -111,7 +116,7 @@ _compile target: softfloat dramsim3 sv
     cxx_flags=(
         -g
         -O3
-        -flto
+        #-flto
         -DCONFIG_TARGET_{{target}}
         -DEMU_TRACE_FST
     )
@@ -141,7 +146,7 @@ _compile target: softfloat dramsim3 sv
     make -C {{BUILD_DIR}}/verilator/{{target}} -f VTop.mk -j $NIX_BUILD_CORES CXX={{SIM_CXX}} LINK={{SIM_LINK}} AR={{SIM_AR}}
 
 # Build the simulator only. `core-sim` runs the binary produced here.
-compile: (_compile "AnserCore")
+compile: (_compile "SoC")
 
 core-sim: compile
     {{BUILD_DIR}}/bin/ansercore {{SIM_ARGS}}

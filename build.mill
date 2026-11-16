@@ -20,6 +20,12 @@ object ansercore extends ScalaModule with ScalafmtModule { m =>
   override def mvnDeps             = Seq(mvn"org.chipsalliance::chisel:7.16.0")
   override def scalacPluginMvnDeps = Seq(mvn"org.chipsalliance:::chisel-plugin:7.16.0")
 
+  // Probe and difftest bundles live next to the simulator, not under ansercore/src.
+  override def sources = Task.Sources(
+    os.sub / "src",
+    os.rel / os.up / "rtl-sim" / "scala",
+  )
+
   object test extends ScalaTests with TestModule.ScalaTest with ScalafmtModule {
     override def mvnDeps = m.mvnDeps() ++ Seq(
       mvn"org.scalatest::scalatest::3.2.19"

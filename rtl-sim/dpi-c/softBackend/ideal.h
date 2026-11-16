@@ -19,11 +19,16 @@ struct StepResult {
 
 // Fetch request from the frontend. taken/target describe the branch.
 // A pc or instruction mismatch calls session_fail and leaves the hart unchanged.
+// gpr and fpr are 32 words. csr is DiffCSR order: privilege, mstatus,
+// sstatus, mepc, sepc, mtval, stval, mtvec, stvec, mcause, scause, satp,
+// mip, mie, mscratch, sscratch, mideleg, medeleg, fcsr. state_pc is the
+// architectural pc after the instruction.
 extern "C" void ideal_backend_inst(uint64_t pc, unsigned int inst,
                                    unsigned char page_fault,
                                    unsigned char access_fault,
                                    unsigned char* taken, uint64_t* target,
-                                   IsaState* state);
+                                   uint64_t* gpr, uint64_t* fpr, uint64_t* csr,
+                                   uint64_t* state_pc, unsigned char* mmio);
 
 // Constructed once when --ideal is set. The constructor clears the hart.
 class SoftBackend final : public DpiModule {

@@ -160,6 +160,7 @@ bool take_word(const uint64_t* words, int nwords, int* index, uint64_t* out) {
 }
 
 void handle_arch_commit(const uint64_t* words, int nwords) {
+  session_progress();
   if (nwords != kArchWords) {
     std::fprintf(stderr, "DiffArchCommit has %d words, expected %d\n", nwords,
                  kArchWords);

@@ -13,6 +13,7 @@ int main(int argc, char** argv) {
   register_platform_options(options);
   register_service_options(options);
   register_dpi_options(options);
+  register_session_options(options);
 
   ParseStatus parsed = options.parse(argc, argv);
   if (parsed == ParseStatus::Help) {

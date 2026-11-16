@@ -177,13 +177,30 @@ extern "C" void ideal_backend_inst(uint64_t pc, unsigned int inst,
                                    unsigned char page_fault,
                                    unsigned char access_fault,
                                    unsigned char* taken, uint64_t* target,
-                                   IsaState* state) {
+                                   uint64_t* gpr, uint64_t* fpr, uint64_t* csr,
+                                   uint64_t* state_pc, unsigned char* mmio) {
   if (current == nullptr) {
     std::fprintf(stderr, "ideal_backend_inst called without --ideal\n");
     std::abort();
   }
   StepResult step_result = current->step(pc, inst, page_fault, access_fault);
-  *state = current->isa_state();
+  IsaState state = current->isa_state();
   *taken = step_result.taken ? 1 : 0;
   *target = step_result.target;
+  *mmio = step_result.mmio ? 1 : 0;
+  for (int i = 0; i < 32; ++i) {
+    gpr[i] = state.gpr[i];
+    fpr[i] = state.fpr[i];
+  }
+  const uint64_t fields[] = {
+      state.priv,     state.mstatus, state.sstatus, state.mepc,  state.sepc,
+      state.mtval,    state.stval,   state.mtvec,   state.stvec, state.mcause,
+      state.scause,   state.satp,    state.mip,     state.mie,   state.mscratch,
+      state.sscratch, state.mideleg, state.medeleg, state.fcsr,
+  };
+  static_assert(sizeof(fields) / sizeof(fields[0]) == 19, "csr count");
+  for (int i = 0; i < 19; ++i) {
+    csr[i] = fields[i];
+  }
+  *state_pc = state.pc;
 }
