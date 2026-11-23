@@ -4,6 +4,7 @@
 #include <memory>
 #include <vector>
 
+#include "dpi-c/dpi.h"
 #include "platform/platform.h"
 #include "service/service.h"
 
@@ -24,6 +25,7 @@ public:
 private:
   SessionState state_;
   std::vector<std::unique_ptr<SimService>> services_;
+  std::vector<std::unique_ptr<DpiModule>> dpi_;
   std::unique_ptr<Platform> platform_;
 };
 

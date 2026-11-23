@@ -2,7 +2,7 @@
 
 Session::Session(int argc, char **argv)
     : state_(SessionState::kNormal), services_(create_services()),
-      platform_(create_platform(argc, argv)) {}
+      dpi_(create_dpi()), platform_(create_platform(argc, argv)) {}
 
 void Session::run() {
   state_ = SessionState::kRunning;
