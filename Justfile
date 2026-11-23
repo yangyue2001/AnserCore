@@ -139,6 +139,7 @@ _compile target: softfloat sv
     ld_flags=(
         -flto
         {{ quote(SOFTFLOAT_BUILD) }}/libsoftfloat.a
+        -ldl
         -pthread
     )
     if [[ "$backend" == "dramsim3" ]]; then

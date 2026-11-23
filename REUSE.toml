@@ -13,6 +13,7 @@ SPDX-License-Identifier = "MulanPSL-2.0"
 path = [
     "rtl-sim/dpi-c/**",
     "rtl-sim/platform/**",
+    "rtl-sim/scala/**",
     "rtl-sim/service/**",
     "rtl-sim/session/**",
 ]
