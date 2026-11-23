@@ -40,13 +40,40 @@ dramsim3:
     cmake -S "$dram_dir" -B "$dram_dir/build" -DCOSIM=ON -DCMAKE_BUILD_TYPE=Release
     cmake --build "$dram_dir/build" --target dramsim3 -j "$NIX_BUILD_CORES"
 
+# Build Spike's SoftFloat implementation from the revision used by the F/D backend.
+SOFTFLOAT_REV := "da2f415bb62bec3e93b33b379d787b4262aade9f"
+SOFTFLOAT_DIR := justfile_directory() + "/third_party/riscv-isa-sim-" + SOFTFLOAT_REV
+SOFTFLOAT_BUILD := justfile_directory() + "/out/spike-" + SOFTFLOAT_REV
+
+softfloat:
+    #!/usr/bin/env zsh
+    set -euo pipefail
+    src={{ quote(SOFTFLOAT_DIR) }}
+    obj={{ quote(SOFTFLOAT_BUILD) }}
+    rev={{ SOFTFLOAT_REV }}
+    if [[ ! -d "$src" ]]; then
+        mkdir -p "$PRJ_ROOT/third_party"
+        tmp=$(mktemp -d "$PRJ_ROOT/third_party/.spike.XXXXXX")
+        trap 'rm -rf "$tmp"' EXIT
+        curl -fLsS --retry 3 "https://github.com/riscv-software-src/riscv-isa-sim/archive/$rev.tar.gz" -o "$tmp/source.tar.gz"
+        (cd "$tmp" && echo '1d82e498671cf82279c28d8e46c6fa85e3cd14b7c5c18e24707ed628c8b8c6b5  source.tar.gz' | sha256sum -c -)
+        tar -xzf "$tmp/source.tar.gz" -C "$tmp"
+        mv -T "$tmp/riscv-isa-sim-$rev" "$src" || test -d "$src"
+    fi
+    mkdir -p "$obj"
+    cd "$obj"
+    if [[ ! -f Makefile ]]; then
+        "$src/configure" --without-boost --without-boost-asio --without-boost-regex
+    fi
+    make -j "$NIX_BUILD_CORES" libsoftfloat.a
+
 sv:
     #!/usr/bin/env zsh
     set -e
     mill -i ansercore.run
     echo "SystemVerilog files are generated."
 
-_compile target: sv
+_compile target: softfloat sv
     #!/usr/bin/env zsh
     set -euo pipefail
     backend={{ quote(DRAM_BACKEND) }}
@@ -97,6 +124,7 @@ _compile target: sv
         {{ BUILD_DIR }}/verilator
         {{ INC_DIR }}
         {{ CONFIG_DIR }}
+        {{ quote(SOFTFLOAT_DIR) }}/softfloat
     )
     if [[ -n ${C_INCLUDE_PATH:-} ]]; then
         include_dirs+=($C_INCLUDE_PATH)
@@ -110,6 +138,7 @@ _compile target: sv
     )
     ld_flags=(
         -flto
+        {{ quote(SOFTFLOAT_BUILD) }}/libsoftfloat.a
         -pthread
     )
     if [[ "$backend" == "dramsim3" ]]; then

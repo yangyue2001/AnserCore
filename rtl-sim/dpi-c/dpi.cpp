@@ -2,6 +2,7 @@
 
 #include <utility>
 
+#include "dpi-c/softBackend/ideal.h"
 #include "dpi-c/softMMU/mmu.h"
 
 namespace {
@@ -13,6 +14,7 @@ struct DpiEntry {
 
 const DpiEntry kModules[] = {
     {register_mmu_options, create_mmu},
+    {register_ideal_options, create_ideal},
 };
 
 } // namespace

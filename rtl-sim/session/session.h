@@ -17,10 +17,13 @@ enum class SessionState {
 class Session {
 public:
   explicit Session(int argc, char **argv);
+  ~Session();
 
   void run();
   void finish();
   SessionState state() const { return state_; }
+
+  friend void session_fail();
 
 private:
   SessionState state_;
@@ -28,5 +31,7 @@ private:
   std::vector<std::unique_ptr<DpiModule>> dpi_;
   std::unique_ptr<Platform> platform_;
 };
+
+void session_fail();
 
 #endif
